@@ -1,0 +1,218 @@
+:root {
+  --primary:    #ff3f6c;
+  --dark:       #282c3f;
+  --border:     #eaeaec;
+  --text-sec:   #696b79;
+  --text-muted: #94969f;
+  --shadow-lg:  0 8px 32px rgba(0,0,0,.14);
+  --radius-sm:  4px;
+  --radius-md:  8px;
+}
+
+/* ── Login button (logged-out state) ────────────────── */
+.user-menu-login-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.4rem 0.85rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+  color: var(--dark);
+}
+
+.user-menu-login-btn:hover {
+  background: #fff0f3;
+  color: var(--primary);
+}
+
+.login-icon  { font-size: 1.15rem; line-height: 1; }
+.login-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.2px; }
+
+/* ── Logged-in trigger ──────────────────────────────── */
+.user-menu { position: relative; }
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.35rem 0.6rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  color: var(--dark);
+  max-width: 160px;
+}
+
+.user-menu-trigger:hover,
+.user-menu-trigger.active {
+  background: #fff0f3;
+  color: var(--primary);
+}
+
+.user-menu-trigger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Avatar circle */
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #c0392b);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.user-trigger-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.user-trigger-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+  color: var(--dark);
+}
+
+.user-menu-trigger:hover .user-trigger-name,
+.user-menu-trigger.active .user-trigger-name { color: var(--primary); }
+
+.user-trigger-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.user-chevron {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  display: inline-block;
+  transform: rotate(90deg);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.user-chevron.up { transform: rotate(-90deg); }
+
+/* ── Dropdown ───────────────────────────────────────── */
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 260px;
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  overflow: hidden;
+  animation: dropDown 0.15s ease;
+}
+
+@keyframes dropDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dropdown header */
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, #282c3f, #1a1d2e);
+}
+
+.dropdown-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #c0392b);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,.2);
+  letter-spacing: 0.5px;
+}
+
+.dropdown-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: white;
+}
+
+.dropdown-email {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,.6);
+  margin-top: 1px;
+}
+
+.dropdown-role-badge {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(255,63,108,.8);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* Divider */
+.dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+/* Menu items */
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0.65rem 1.1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 0.88rem;
+  color: var(--dark);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  font-family: inherit;
+}
+
+.dropdown-item span:first-child { font-size: 1rem; width: 1.2rem; text-align: center; }
+
+.dropdown-item:hover {
+  background: #f7f7f7;
+  color: var(--primary);
+}
+
+/* Logout */
+.logout-item { color: #d44; }
+.logout-item:hover { background: #fff0f0; color: #c0392b; }

@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { api } from "./api";
 import "./Navigation.css";
 
-// Lazy-load the Search MFE (nested remote)
-const Search = React.lazy(() => import("searchRemote/Search"));
+// Lazy-load nested remotes
+const Search   = React.lazy(() => import("searchRemote/Search"));
+const UserMenu = React.lazy(() => import("authRemote/UserMenu"));
 
 // Inline fallback search bar shown while Search MFE loads
 const SearchFallback = () => (
@@ -83,10 +84,14 @@ const Navigation = () => {
             <span className="nav-item-label">Bag</span>
           </Link>
 
-          <Link to="/" className="nav-item">
-            <span className="nav-item-icon">👤</span>
-            <span className="nav-item-label">Profile</span>
-          </Link>
+          <React.Suspense fallback={
+            <div className="nav-item">
+              <span className="nav-item-icon">👤</span>
+              <span className="nav-item-label">Profile</span>
+            </div>
+          }>
+            <UserMenu />
+          </React.Suspense>
         </nav>
       </div>
     </header>

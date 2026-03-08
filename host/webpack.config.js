@@ -58,6 +58,7 @@ module.exports = {
         productDetails: "productDetails@http://localhost:3001/remoteEntry.js",
         cart: "cart@http://localhost:3002/remoteEntry.js",
         searchRemote: "searchRemote@http://localhost:3005/remoteEntry.js",
+        authRemote:   "authRemote@http://localhost:3006/remoteEntry.js",
       },
       shared: {
         react: {

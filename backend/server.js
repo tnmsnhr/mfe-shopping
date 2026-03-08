@@ -665,6 +665,82 @@ const products = [
   },
 ];
 
+// ==================== USERS (demo — passwords NOT hashed, for demo only) ====================
+const users = [
+  { id: 1, username: "john.doe",     password: "pass123",   displayName: "John Doe",     email: "john@shopzone.io",   avatar: "JD", role: "admin"  },
+  { id: 2, username: "jane.smith",   password: "pass123",   displayName: "Jane Smith",   email: "jane@shopzone.io",   avatar: "JS", role: "user"   },
+  { id: 3, username: "alex.jones",   password: "pass123",   displayName: "Alex Jones",   email: "alex@shopzone.io",   avatar: "AJ", role: "user"   },
+  { id: 4, username: "sarah.wilson", password: "secure456", displayName: "Sarah Wilson", email: "sarah@shopzone.io",  avatar: "SW", role: "user"   },
+  { id: 5, username: "mike.chen",    password: "secure456", displayName: "Mike Chen",    email: "mike@shopzone.io",   avatar: "MC", role: "user"   },
+  { id: 6, username: "emma.davis",   password: "pass123",   displayName: "Emma Davis",   email: "emma@shopzone.io",   avatar: "ED", role: "user"   },
+  { id: 7, username: "ryan.taylor",  password: "pass123",   displayName: "Ryan Taylor",  email: "ryan@shopzone.io",   avatar: "RT", role: "user"   },
+  { id: 8, username: "lisa.brown",   password: "secret789", displayName: "Lisa Brown",   email: "lisa@shopzone.io",   avatar: "LB", role: "user"   },
+  { id: 9, username: "demo",         password: "demo",      displayName: "Demo User",    email: "demo@shopzone.io",   avatar: "DU", role: "user"   },
+];
+
+// In-memory auth sessions  { token → userId }
+const sessions = {};
+
+const generateToken = () =>
+  Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// ==================== AUTH ROUTES ====================
+
+// POST /api/auth/login
+app.post("/api/auth/login", (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: "Username and password are required." });
+  }
+
+  const user = users.find(
+    (u) => u.username.toLowerCase() === username.toLowerCase().trim() &&
+           u.password === password
+  );
+
+  if (!user) {
+    return res.status(401).json({ success: false, message: "Invalid username or password." });
+  }
+
+  const token = generateToken();
+  sessions[token] = user.id;
+
+  const { password: _pw, ...safeUser } = user;
+  res.json({ success: true, data: { token, user: safeUser } });
+});
+
+// POST /api/auth/logout
+app.post("/api/auth/logout", (req, res) => {
+  const token = req.headers["x-auth-token"];
+  if (token && sessions[token]) {
+    delete sessions[token];
+  }
+  res.json({ success: true, message: "Logged out." });
+});
+
+// GET /api/auth/me
+app.get("/api/auth/me", (req, res) => {
+  const token = req.headers["x-auth-token"];
+  if (!token || !sessions[token]) {
+    return res.status(401).json({ success: false, message: "Not authenticated." });
+  }
+  const user = users.find((u) => u.id === sessions[token]);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found." });
+  }
+  const { password: _pw, ...safeUser } = user;
+  res.json({ success: true, data: safeUser });
+});
+
+// GET /api/auth/users  (public list for demo hint — no passwords)
+app.get("/api/auth/users", (req, res) => {
+  const safeUsers = users.map(({ id, username, displayName, email, avatar, role }) => ({
+    id, username, displayName, email, avatar, role,
+  }));
+  res.json({ success: true, data: safeUsers });
+});
+
+// ==================== CART STORAGE ====================
 // In-memory cart storage (keyed by session/user ID)
 // In production, use a database or Redis
 const carts = {};

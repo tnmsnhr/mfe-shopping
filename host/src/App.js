@@ -4,9 +4,10 @@ import { api } from "./api";
 import "./App.css";
 
 // Lazy load remote modules
-const Navigation   = React.lazy(() => import("navigation/Navigation"));
+const Navigation     = React.lazy(() => import("navigation/Navigation"));
 const ProductDetails = React.lazy(() => import("productDetails/ProductDetails"));
-const Cart         = React.lazy(() => import("cart/Cart"));
+const Cart           = React.lazy(() => import("cart/Cart"));
+const Login          = React.lazy(() => import("authRemote/Login"));
 
 // Helpers
 const getMrp      = (price) => Math.round(price * 1.4);
@@ -252,6 +253,11 @@ function App() {
             <Route path="/"            element={<Home />} />
             <Route path="/product/:id" element={<ProductDetailsWrapper />} />
             <Route path="/cart"        element={<CartWrapper />} />
+            <Route path="/login"       element={
+              <React.Suspense fallback={<div className="page-loading"><div className="spinner" />Loading...</div>}>
+                <Login />
+              </React.Suspense>
+            } />
           </Routes>
         </main>
         <footer className="footer">
