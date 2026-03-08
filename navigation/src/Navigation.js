@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { api } from "./api";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, onSnapshot } from "firebase/firestore";
+import { auth, db } from "./firebase";
 import "./Navigation.css";
 
 // Lazy-load nested remotes
 const Search   = React.lazy(() => import("searchRemote/Search"));
 const UserMenu = React.lazy(() => import("authRemote/UserMenu"));
 
-// Inline fallback search bar shown while Search MFE loads
 const SearchFallback = () => (
   <div className="search-fallback">
     <span className="search-fallback-icon">🔍</span>
-    <input
-      type="text"
-      placeholder="Search for products, brands and more"
-      disabled
-    />
+    <input type="text" placeholder="Search for products, brands and more" disabled />
   </div>
 );
 
@@ -23,29 +20,35 @@ const Navigation = () => {
   const [cartCount, setCartCount] = useState(0);
   const [scrolled,  setScrolled]  = useState(false);
 
+  // ── Real-time cart count from Firestore ─────────────────────
   useEffect(() => {
-    const loadCartCount = async () => {
-      try {
-        const cart  = await api.getCart();
-        const total = cart.reduce((sum, item) => sum + item.quantity, 0);
-        setCartCount(total);
-      } catch {
-        setCartCount(0);
-      }
-    };
+    let cartUnsub = null;
 
-    loadCartCount();
+    const authUnsub = onAuthStateChanged(auth, (user) => {
+      if (cartUnsub) { cartUnsub(); cartUnsub = null; }
 
-    const onCartUpdate = () => loadCartCount();
-    window.addEventListener("cartUpdated", onCartUpdate);
+      if (!user) { setCartCount(0); return; }
 
+      cartUnsub = onSnapshot(
+        collection(db, "carts", user.uid, "items"),
+        (snap) => {
+          const total = snap.docs.reduce((sum, d) => sum + (d.data().quantity || 0), 0);
+          setCartCount(total);
+        },
+        (err) => {
+          console.error("[ShopZone] Firestore cart count failed — check Firestore Rules:", err.message);
+        }
+      );
+    });
+
+    return () => { authUnsub(); if (cartUnsub) cartUnsub(); };
+  }, []);
+
+  // ── Scroll shadow ───────────────────────────────────────────
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     window.addEventListener("scroll", onScroll);
-
-    return () => {
-      window.removeEventListener("cartUpdated", onCartUpdate);
-      window.removeEventListener("scroll", onScroll);
-    };
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
@@ -57,7 +60,7 @@ const Navigation = () => {
           <span className="logo-text">ShopZone</span>
         </Link>
 
-        {/* Search MFE — nested remote */}
+        {/* Search MFE */}
         <React.Suspense fallback={<SearchFallback />}>
           <Search />
         </React.Suspense>
@@ -84,6 +87,7 @@ const Navigation = () => {
             <span className="nav-item-label">Bag</span>
           </Link>
 
+          {/* UserMenu from Auth MFE — shows Login button or avatar dropdown */}
           <React.Suspense fallback={
             <div className="nav-item">
               <span className="nav-item-icon">👤</span>

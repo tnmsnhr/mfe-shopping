@@ -67,6 +67,7 @@ module.exports = {
           requiredVersion: "^6.20.0",
           eager: false,
         },
+        firebase: { singleton: true, requiredVersion: "^10.7.0", eager: false },
       },
     }),
     new HtmlWebpackPlugin({

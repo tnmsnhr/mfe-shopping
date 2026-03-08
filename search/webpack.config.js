@@ -41,6 +41,7 @@ module.exports = {
         react: { singleton: true, requiredVersion: "^18.2.0", eager: false },
         "react-dom": { singleton: true, requiredVersion: "^18.2.0", eager: false },
         "react-router-dom": { singleton: true, requiredVersion: "^6.20.0", eager: false },
+        firebase: { singleton: true, eager: false },
       },
     }),
     new HtmlWebpackPlugin({ template: "./public/index.html" }),

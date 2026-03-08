@@ -436,3 +436,32 @@
   .price-block { gap: 6px; }
   .pd-price { font-size: 1.5rem; }
 }
+
+/* ── Login nudge ──────────────────────────────────────────────── */
+.login-nudge {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff8e7;
+  border: 1px solid #ffe4a0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #5a4000;
+  margin-top: 1rem;
+}
+.nudge-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: underline;
+}
+.btn-wishlist-full.active {
+  background: #fff0f3;
+  color: var(--primary);
+  border-color: var(--primary);
+}

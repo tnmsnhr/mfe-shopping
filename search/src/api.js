@@ -1,11 +1,15 @@
-const API_BASE_URL =
-  (typeof window !== "undefined" && window.API_URL) || "http://localhost:3003";
+/**
+ * search/src/api.js
+ * Reads all products from Firestore for live search.
+ */
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { db } from "./firebase";
 
 export const api = {
   getProducts: async () => {
-    const response = await fetch(`${API_BASE_URL}/api/products`);
-    if (!response.ok) throw new Error("Failed to fetch products");
-    const result = await response.json();
-    return result.data;
+    const snap = await getDocs(
+      query(collection(db, "products"), orderBy("rating", "desc"))
+    );
+    return snap.docs.map((d) => d.data());
   },
 };

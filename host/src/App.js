@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Link, useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "./firebase";
+
 import { api } from "./api";
+import { seedIfEmpty } from "./seedFirestore";
 import "./App.css";
 
 // Lazy load remote modules
@@ -51,6 +56,7 @@ const Home = () => {
   const [loading,        setLoading]        = useState(true);
   const [filtering,      setFiltering]      = useState(false);
   const [error,          setError]          = useState(null);
+  const [authUser,       setAuthUser]       = useState(undefined);
   const [wishlist,       setWishlist]       = useState(new Set());
 
   // Fetch categories once
@@ -60,22 +66,44 @@ const Home = () => {
       .catch(() => {/* fallback silently */});
   }, []);
 
-  // Fetch ALL products on mount (we filter client-side for instant switching)
+  // Fetch ALL products on mount.
+  // seedIfEmpty() runs first — writes products to Firestore if the collection
+  // is empty (i.e. first-ever app load). Subsequent loads skip the seed.
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
+        await seedIfEmpty();              // no-op if already seeded
         const data = await api.getProducts();
         setAllProducts(data);
         setError(null);
       } catch (err) {
-        setError("Failed to load products. Make sure the backend is running.");
-        console.error(err);
+        setError("Failed to load products. Check your Firestore connection.");
+        console.error("[ShopZone] Product load error:", err);
       } finally {
         setLoading(false);
       }
     };
     fetchProducts();
+  }, []);
+
+  // ── Firestore wishlist — real-time, tied to auth state ──────
+  useEffect(() => {
+    let wishUnsub = null;
+
+    const authUnsub = onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      if (wishUnsub) { wishUnsub(); wishUnsub = null; }
+
+      if (!user) { setWishlist(new Set()); return; }
+
+      wishUnsub = onSnapshot(
+        collection(db, "wishlists", user.uid, "items"),
+        (snap) => setWishlist(new Set(snap.docs.map((d) => parseInt(d.id, 10))))
+      );
+    });
+
+    return () => { authUnsub(); if (wishUnsub) wishUnsub(); };
   }, []);
 
   const handleCategoryClick = useCallback((cat) => {
@@ -90,13 +118,25 @@ const Home = () => {
     setTimeout(() => setFiltering(false), 150);
   }, [setSearchParams]);
 
-  const toggleWishlist = (e, id) => {
+  const toggleWishlist = async (e, id) => {
     e.preventDefault();
-    setWishlist((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    if (!authUser) {
+      navigate("/login");
+      return;
+    }
+    const ref = doc(db, "wishlists", authUser.uid, "items", id.toString());
+    if (wishlist.has(id)) {
+      await deleteDoc(ref);
+    } else {
+      const product = allProducts.find((p) => p.id === id);
+      await setDoc(ref, {
+        productId: id,
+        name:      product?.name  || "",
+        image:     product?.image || "",
+        price:     product?.price || 0,
+        addedAt:   serverTimestamp(),
+      });
+    }
   };
 
   // Client-side category filter
@@ -193,7 +233,7 @@ const Home = () => {
                       >
                         {wishlist.has(product.id) ? "♥" : "♡"}
                       </button>
-                      <span className="discount-badge">{getDiscount(product.price)}% OFF</span>
+                      <span className="discount-badge">{product.discount || Math.round((1 - product.price / Math.round(product.price * 1.4)) * 100)}% OFF</span>
                       {!product.inStock && <span className="oos-overlay">Out of Stock</span>}
                     </div>
 
@@ -207,8 +247,8 @@ const Home = () => {
                       </div>
                       <div className="product-card-pricing">
                         <span className="current-price">${product.price.toLocaleString()}</span>
-                        <span className="original-price">${getMrp(product.price).toLocaleString()}</span>
-                        <span className="discount-text">{getDiscount(product.price)}% off</span>
+                        <span className="original-price">${(product.mrp || Math.round(product.price * 1.4)).toLocaleString()}</span>
+                        <span className="discount-text">{product.discount || Math.round((1 - product.price / Math.round(product.price * 1.4)) * 100)}% off</span>
                       </div>
                       {product.inStock
                         ? <span className="stock-badge in-stock">✔ Free Delivery</span>

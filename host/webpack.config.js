@@ -1,6 +1,5 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const ModuleFederationPlugin = require("webpack/lib/container/ModuleFederationPlugin");
-const webpack = require("webpack");
 
 module.exports = {
   mode: "development",
@@ -46,11 +45,6 @@ module.exports = {
     ],
   },
   plugins: [
-    new webpack.DefinePlugin({
-      "process.env.REACT_APP_API_URL": JSON.stringify(
-        process.env.REACT_APP_API_URL || "http://localhost:3003"
-      ),
-    }),
     new ModuleFederationPlugin({
       name: "host",
       remotes: {
@@ -76,6 +70,7 @@ module.exports = {
           requiredVersion: "^6.20.0",
           eager: true,
         },
+        firebase: { singleton: true, requiredVersion: "^10.7.0", eager: true },
       },
     }),
     new HtmlWebpackPlugin({
