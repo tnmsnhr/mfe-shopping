@@ -50,6 +50,7 @@ module.exports = {
       filename: "remoteEntry.js",
       exposes: {
         "./ProductDetails": "./src/ProductDetails",
+        "./ProductCard":    "./src/ProductCard",
       },
       shared: {
         react: {

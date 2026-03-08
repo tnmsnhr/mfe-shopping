@@ -17,25 +17,165 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
-import Skeleton from "@mui/material/Skeleton";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Alert from "@mui/material/Alert";
-import Divider from "@mui/material/Divider";
-import Rating from "@mui/material/Rating";
-import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
-import FavoriteIcon from "@mui/icons-material/Favorite";
+import Card        from "@mui/material/Card";
+import CardContent  from "@mui/material/CardContent";
+import Chip         from "@mui/material/Chip";
+import Skeleton     from "@mui/material/Skeleton";
+import Button       from "@mui/material/Button";
+import Alert        from "@mui/material/Alert";
+import Divider      from "@mui/material/Divider";
+import Paper        from "@mui/material/Paper";
+import RefreshIcon      from "@mui/icons-material/Refresh";
+import HomeIcon         from "@mui/icons-material/Home";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import theme from "./theme";
 import "./App.css";
 
-// Lazy-load remote modules
+// ─── Error Boundary ─────────────────────────────────────────────
+// React.Suspense only handles "loading" state.
+// ErrorBoundary handles "failed to load" — network errors, port down, etc.
+// Must be a class component — React does not support hook-based error boundaries.
+class RemoteErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, retryKey: 0 };
+  }
+
+  static getDerivedStateFromError(error) {
+    // Called synchronously when a child throws.
+    // Update state so the next render shows the fallback UI.
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    // Log to console (swap for Sentry / Datadog in production)
+    console.error(
+      `[ShopZone] Remote MFE failed to load — ${this.props.name || "unknown"}`,
+      "\nError:", error.message,
+      "\nComponent stack:", info.componentStack,
+    );
+  }
+
+  handleRetry = () => {
+    // Increment retryKey → forces React to re-mount children from scratch
+    this.setState((s) => ({ hasError: false, error: null, retryKey: s.retryKey + 1 }));
+  };
+
+  render() {
+    if (!this.state.hasError) {
+      // key={retryKey} ensures children re-mount completely on retry
+      return (
+        <React.Fragment key={this.state.retryKey}>
+          {this.props.children}
+        </React.Fragment>
+      );
+    }
+
+    const { name = "Module", fallbackPath = "/", fallbackLabel = "Go Home" } = this.props;
+    const isChunkError =
+      this.state.error?.name === "ChunkLoadError" ||
+      this.state.error?.message?.includes("Loading chunk") ||
+      this.state.error?.message?.includes("Failed to fetch");
+
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          px: 3,
+        }}
+      >
+        <Paper
+          elevation={0}
+          sx={{
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 3,
+            p: { xs: 3, sm: 5 },
+            maxWidth: 480,
+            width: "100%",
+            textAlign: "center",
+          }}
+        >
+          <WarningAmberIcon sx={{ fontSize: "3.5rem", color: "warning.main", mb: 2 }} />
+
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+            {name} couldn't load
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
+            {isChunkError
+              ? `The ${name} service is temporarily unavailable. Please check that all MFE servers are running.`
+              : `Something went wrong while loading ${name}.`}
+          </Typography>
+
+          {/* Show actual error message in development only */}
+          {process.env.NODE_ENV !== "production" && (
+            <Box
+              sx={{
+                bgcolor: "#fff8e1",
+                border: "1px solid #ffe082",
+                borderRadius: 1,
+                px: 2,
+                py: 1,
+                my: 2,
+                textAlign: "left",
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ fontFamily: "monospace", color: "#5d4037", wordBreak: "break-word" }}
+              >
+                {this.state.error?.message || "Unknown error"}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Hint for ChunkLoadErrors */}
+          {isChunkError && (
+            <Alert severity="info" sx={{ textAlign: "left", mb: 2, borderRadius: 1.5 }}>
+              <Typography variant="caption">
+                Make sure the MFE server is running:
+                <Box component="pre" sx={{ m: 0, mt: 0.5, fontFamily: "monospace", fontSize: "0.75rem" }}>
+                  npm run start:product   # port 3001
+                </Box>
+              </Typography>
+            </Alert>
+          )}
+
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", mt: 2, flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              startIcon={<RefreshIcon />}
+              onClick={this.handleRetry}
+              size="small"
+            >
+              Try Again
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<HomeIcon />}
+              component={Link}
+              to={fallbackPath}
+              size="small"
+            >
+              {fallbackLabel}
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
+    );
+  }
+}
+
+// ─── Lazy-load remote modules ───────────────────────────────────
 const Navigation     = React.lazy(() => import("navigation/Navigation"));
 const ProductDetails = React.lazy(() => import("productDetails/ProductDetails"));
+// ProductCard is also exposed from the product-details MFE so the host never
+// needs to bundle it — the same remote entry is reused (no extra network request).
+const ProductCard    = React.lazy(() => import("productDetails/ProductCard"));
 const Cart           = React.lazy(() => import("cart/Cart"));
 const Orders         = React.lazy(() => import("ordersRemote/Orders"));
 const AdminPortal    = React.lazy(() => import("adminRemote/Admin"));
@@ -58,173 +198,6 @@ const SkeletonCard = () => (
     </CardContent>
   </Card>
 );
-
-// ─── Product Card ───────────────────────────────────────────────
-const ProductCard = ({ product, isWishlisted, onToggleWishlist }) => {
-  const mrp      = product.mrp || Math.round(product.price * 1.4);
-  const discount = product.discount || Math.round((1 - product.price / mrp) * 100);
-
-  return (
-    <Card
-      sx={{
-        borderRadius: 2,
-        position: "relative",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        cursor: "pointer",
-        "&:hover .product-img-emoji": { transform: "scale(1.1)" },
-      }}
-    >
-      <CardActionArea
-        component={Link}
-        to={`/product/${product.id}`}
-        sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch" }}
-      >
-        {/* Image area */}
-        <Box
-          sx={{
-            position: "relative",
-            height: 220,
-            bgcolor: "#fafafa",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          <Typography
-            className="product-img-emoji"
-            sx={{
-              fontSize: "5rem",
-              lineHeight: 1,
-              transition: "transform .25s ease",
-              display: "block",
-              userSelect: "none",
-            }}
-          >
-            {product.image}
-          </Typography>
-
-          {/* Discount badge */}
-          {discount > 0 && (
-            <Chip
-              label={`${discount}% OFF`}
-              size="small"
-              sx={{
-                position: "absolute",
-                top: 10,
-                left: 10,
-                bgcolor: "#fce4ec",
-                color: "primary.main",
-                fontWeight: 700,
-                fontSize: "0.7rem",
-                height: 22,
-              }}
-            />
-          )}
-
-          {/* Out of stock overlay */}
-          {!product.inStock && (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                bgcolor: "rgba(255,255,255,0.75)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
-                Out of Stock
-              </Typography>
-            </Box>
-          )}
-        </Box>
-
-        {/* Info */}
-        <CardContent sx={{ p: 2, flex: 1 }}>
-          <Typography
-            variant="caption"
-            sx={{ color: "text.secondary", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}
-          >
-            {product.brand}
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              mt: 0.25,
-              mb: 0.75,
-              lineHeight: 1.35,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {product.name}
-          </Typography>
-
-          {/* Rating */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 1 }}>
-            <Rating value={product.rating} precision={0.5} readOnly size="small" max={5} />
-            <Typography variant="caption" color="text.secondary">
-              ({product.reviews?.toLocaleString()})
-            </Typography>
-          </Box>
-
-          {/* Pricing */}
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, flexWrap: "wrap" }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem" }}>
-              ${product.price.toLocaleString()}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", textDecoration: "line-through" }}
-            >
-              ${mrp.toLocaleString()}
-            </Typography>
-            {discount > 0 && (
-              <Typography variant="caption" color="success.main" sx={{ fontWeight: 700 }}>
-                {discount}% off
-              </Typography>
-            )}
-          </Box>
-
-          {product.inStock && (
-            <Typography variant="caption" color="success.main" sx={{ fontWeight: 600, mt: 0.5, display: "block" }}>
-              ✔ Free Delivery
-            </Typography>
-          )}
-        </CardContent>
-      </CardActionArea>
-
-      {/* Wishlist button */}
-      <Tooltip title={isWishlisted ? "Remove from Wishlist" : "Add to Wishlist"}>
-        <IconButton
-          size="small"
-          onClick={(e) => { e.preventDefault(); onToggleWishlist(e, product.id); }}
-          sx={{
-            position: "absolute",
-            top: 8,
-            right: 8,
-            bgcolor: "rgba(255,255,255,0.9)",
-            "&:hover": { bgcolor: "#fff", color: "primary.main" },
-            width: 32,
-            height: 32,
-          }}
-        >
-          {isWishlisted
-            ? <FavoriteIcon sx={{ fontSize: 18, color: "primary.main" }} />
-            : <FavoriteBorderIcon sx={{ fontSize: 18 }} />}
-        </IconButton>
-      </Tooltip>
-    </Card>
-  );
-};
 
 // ─── Home ───────────────────────────────────────────────────────
 const Home = () => {
@@ -480,14 +453,26 @@ const Home = () => {
                     </Typography>
                   </Box>
                 )
-                : displayed.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    isWishlisted={wishlist.has(product.id)}
-                    onToggleWishlist={toggleWishlist}
-                  />
-                ))}
+                // ProductCard is lazy-loaded from the product-details MFE.
+                // The Suspense boundary here shows skeleton cards while the remote
+                // module is being fetched (typically only on the very first render).
+                // Once loaded the module is cached — all subsequent renders are sync.
+                : (
+                  <React.Suspense
+                    fallback={Array.from({ length: displayed.length || 10 }).map((_, i) => (
+                      <SkeletonCard key={i} />
+                    ))}
+                  >
+                    {displayed.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        isWishlisted={wishlist.has(product.id)}
+                        onToggleWishlist={toggleWishlist}
+                      />
+                    ))}
+                  </React.Suspense>
+                )}
           </Box>
         )}
       </Container>
@@ -495,20 +480,34 @@ const Home = () => {
   );
 };
 
-// ─── Wrappers ──────────────────────────────────────────────────
-const SuspenseWrapper = ({ fallback, children }) => (
-  <React.Suspense fallback={
-    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "40vh" }}>
-      <Typography color="text.secondary">{fallback}</Typography>
-    </Box>
-  }>
-    {children}
-  </React.Suspense>
+// ─── Remote Wrapper (Suspense + ErrorBoundary combined) ─────────
+// Every remote MFE is wrapped with BOTH:
+//   1. ErrorBoundary  — catches load failures (port down, network error)
+//   2. React.Suspense — shows skeleton while the JS bundle is fetching
+const RemoteWrapper = ({ name, fallbackLabel, fallbackPath, loadingFallback, children }) => (
+  <RemoteErrorBoundary name={name} fallbackLabel={fallbackLabel} fallbackPath={fallbackPath}>
+    <React.Suspense
+      fallback={
+        loadingFallback || (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "40vh" }}>
+            <Typography color="text.secondary">Loading {name}…</Typography>
+          </Box>
+        )
+      }
+    >
+      {children}
+    </React.Suspense>
+  </RemoteErrorBoundary>
 );
 
+// Product details needs the URL param extracted by the host router
 const ProductDetailsWrapper = () => {
   const { id } = useParams();
-  return <SuspenseWrapper fallback="Loading product…"><ProductDetails productId={id} /></SuspenseWrapper>;
+  return (
+    <RemoteWrapper name="Product Details" fallbackLabel="Browse Products" fallbackPath="/">
+      <ProductDetails productId={id} />
+    </RemoteWrapper>
+  );
 };
 
 // ─── App ───────────────────────────────────────────────────────
@@ -518,20 +517,38 @@ function App() {
       <CssBaseline />
       <BrowserRouter>
         <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-          {/* Navigation MFE */}
-          <SuspenseWrapper fallback="">
-            <Navigation />
-          </SuspenseWrapper>
+          {/* Navigation MFE — isolated boundary so a nav failure doesn't kill the page */}
+          <RemoteErrorBoundary name="Navigation" fallbackLabel="Home" fallbackPath="/">
+            <React.Suspense fallback={<Box sx={{ height: 64, bgcolor: "secondary.main" }} />}>
+              <Navigation />
+            </React.Suspense>
+          </RemoteErrorBoundary>
 
           {/* Main content */}
           <Box component="main" sx={{ flex: 1 }}>
             <Routes>
               <Route path="/"            element={<Home />} />
               <Route path="/product/:id" element={<ProductDetailsWrapper />} />
-              <Route path="/cart"        element={<SuspenseWrapper fallback="Loading cart…"><Cart /></SuspenseWrapper>} />
-              <Route path="/orders"      element={<SuspenseWrapper fallback="Loading orders…"><Orders /></SuspenseWrapper>} />
-              <Route path="/admin"       element={<SuspenseWrapper fallback="Loading admin…"><AdminPortal /></SuspenseWrapper>} />
-              <Route path="/login"       element={<SuspenseWrapper fallback="Loading…"><Login /></SuspenseWrapper>} />
+              <Route path="/cart"        element={
+                <RemoteWrapper name="Cart" fallbackLabel="Continue Shopping" fallbackPath="/">
+                  <Cart />
+                </RemoteWrapper>
+              } />
+              <Route path="/orders"      element={
+                <RemoteWrapper name="Orders" fallbackLabel="Go Home" fallbackPath="/">
+                  <Orders />
+                </RemoteWrapper>
+              } />
+              <Route path="/admin"       element={
+                <RemoteWrapper name="Admin Portal" fallbackLabel="Go Home" fallbackPath="/">
+                  <AdminPortal />
+                </RemoteWrapper>
+              } />
+              <Route path="/login"       element={
+                <RemoteWrapper name="Login" fallbackLabel="Go Home" fallbackPath="/">
+                  <Login />
+                </RemoteWrapper>
+              } />
             </Routes>
           </Box>
 

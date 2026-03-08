@@ -20,6 +20,7 @@ A deep-dive technical analysis of how 8 microfrontends communicate, share state,
 12. [Standalone Mode — Running Without the Host](#12-standalone-mode)
 13. [Shared UI Theme — Consistent Look Across MFEs](#13-shared-ui-theme)
 14. [Production Considerations](#14-production-considerations)
+15. [Error Handling — What Happens When a Module Fails](#15-error-handling)
 
 ---
 
@@ -48,8 +49,10 @@ Browser → HOST (port 3000)
            │           └─ lazy-loads authRemote/UserMenu → port 3006
            │
            └─ <Routes> renders the current page component:
-               / → Home (inline in host — no remote needed)
-               /product/:id → React.lazy → productDetails (port 3001)
+               / → Home (inline in host)
+               │    └─ product grid renders → React.lazy → productDetails/ProductCard (port 3001)
+               │         └─ SAME remoteEntry.js as ProductDetails — no extra request
+               /product/:id → React.lazy → productDetails/ProductDetails (port 3001)
                /cart        → React.lazy → cart (port 3002)
                /orders      → React.lazy → ordersRemote (port 3007)
                /admin       → React.lazy → adminRemote (port 3008)
@@ -57,6 +60,8 @@ Browser → HOST (port 3000)
 ```
 
 Key insight: **The host downloads remote code on demand**, not all upfront. If you go straight to `/cart`, the product-details bundle is never downloaded.
+
+Another key insight: **One `remoteEntry.js` can expose multiple modules.** The product-details MFE exposes both `./ProductDetails` (the PDP page) and `./ProductCard` (the home-page card). The host fetches `remoteEntry.js` from port 3001 exactly once — both modules are served from that single manifest.
 
 ---
 
@@ -90,6 +95,29 @@ exposes: {
 }
 ```
 
+A single remote can expose **multiple modules** from the same `remoteEntry.js`. The product-details MFE does exactly this:
+
+```js
+// product-details/webpack.config.js
+name: "productDetails",
+filename: "remoteEntry.js",
+exposes: {
+  "./ProductDetails": "./src/ProductDetails",  // full PDP page
+  "./ProductCard":    "./src/ProductCard",     // reusable card for home grid
+}
+```
+
+The host consumes both from the same origin (port 3001):
+
+```js
+// host/src/App.js
+const ProductDetails = React.lazy(() => import("productDetails/ProductDetails"));
+const ProductCard    = React.lazy(() => import("productDetails/ProductCard"));
+//                                                    ↑ same remote — one remoteEntry.js fetch
+```
+
+This is the key advantage: **one server, one manifest, multiple exposed components**. The browser fetches `remoteEntry.js` once; after that each component's chunk is fetched on demand separately.
+
 ### The `remoteEntry.js` file
 
 This is a small manifest (a few KB) that tells the consumer:
@@ -98,11 +126,32 @@ This is a small manifest (a few KB) that tells the consumer:
 - Where to download the actual code chunks
 
 ```
-Host fetches navRemote@http://localhost:3004/remoteEntry.js
-  → Browser learns: "navRemote exposes ./Navigation"
-  → When import("navigation/Navigation") is called:
-      Browser fetches http://localhost:3004/src_Navigation_js.js
-      (loaded from port 3004, not 3000 — this is why publicPath matters)
+Host fetches productDetails@http://localhost:3001/remoteEntry.js
+  → Browser learns: "productDetails exposes ./ProductDetails AND ./ProductCard"
+  → When import("productDetails/ProductCard") is called on the Home page:
+      Browser fetches http://localhost:3001/src_ProductCard_js.js
+  → When import("productDetails/ProductDetails") is called on /product/:id:
+      Browser fetches http://localhost:3001/src_ProductDetails_js.js
+      Both loaded from port 3001 — remoteEntry.js fetched only ONCE
+```
+
+### Critical: dev server must restart to pick up new `exposes` entries
+
+Webpack-dev-server reads `webpack.config.js` **once at startup** and holds the module manifest in memory. Adding a new entry to `exposes` while the server is running has no effect — the in-memory `remoteEntry.js` still only knows about the old entries.
+
+```
+Error: Module "./ProductCard" does not exist in container.
+                    ↑
+  Fix: restart the product-details dev server so webpack
+       recompiles with the new exposes entry.
+       cd product-details && npm start
+```
+
+After restart, you'll see both entries compiled:
+```
+Module Federation: Exposes
+  ./ProductDetails → ./src/ProductDetails
+  ./ProductCard    → ./src/ProductCard    ← new
 ```
 
 ### Why `publicPath` must be an absolute URL for remotes
@@ -826,13 +875,315 @@ If Navigation's server is down, the Error Boundary catches the network error and
 
 ---
 
+---
+
+## 15. Error Handling
+
+### The Problem Without Error Boundaries
+
+When a remote MFE (e.g. ProductDetails on port 3001) fails to load, `React.lazy()` returns a rejected Promise. `React.Suspense` is designed only for the **loading** state — it does not catch errors. Without an `ErrorBoundary`, the thrown error bubbles all the way up to the React root, which has no choice but to **unmount the entire app**:
+
+```
+User visits /product/42 — port 3001 is down:
+
+React.lazy() → fetch http://localhost:3001/remoteEntry.js → FAILS
+                              ↓
+       Promise rejects → React throws ChunkLoadError
+                              ↓
+       React.Suspense re-throws it (Suspense ≠ error handler)
+                              ↓
+       Error bubbles up the tree… no ErrorBoundary found
+                              ↓
+       React unmounts the ENTIRE APP  ← white screen of death
+       Navigation gone. Footer gone. No way to navigate back.
+```
+
+### The Solution — `RemoteErrorBoundary`
+
+An `ErrorBoundary` is a **class component** (React hooks cannot catch errors) with two special lifecycle methods:
+
+```
+getDerivedStateFromError(error)  — called synchronously when a child throws
+                                   → updates state to show the fallback UI
+
+componentDidCatch(error, info)   — called after the error is caught
+                                   → ideal for logging to Sentry / Datadog
+```
+
+In `host/src/App.js`:
+
+```jsx
+class RemoteErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, retryKey: 0 };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };   // triggers fallback UI
+  }
+
+  componentDidCatch(error, info) {
+    console.error(`[ShopZone] Remote MFE failed — ${this.props.name}`,
+      error.message, info.componentStack);
+    // In production: Sentry.captureException(error, { extra: info })
+  }
+
+  handleRetry = () => {
+    // Increment retryKey → forces React to completely re-mount children
+    this.setState(s => ({ hasError: false, error: null, retryKey: s.retryKey + 1 }));
+  };
+
+  render() {
+    if (!this.state.hasError) {
+      // key={retryKey} ensures a fresh mount after retry
+      return <React.Fragment key={this.state.retryKey}>{this.props.children}</React.Fragment>;
+    }
+    // ... renders the error card UI
+  }
+}
+```
+
+### Every Remote is Wrapped in Both Layers
+
+`React.Suspense` and `ErrorBoundary` serve different purposes and must both be present:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  RemoteErrorBoundary  ← catches load failures & render bugs │
+│  └─ React.Suspense   ← shows skeleton while bundle fetches  │
+│     └─ React.lazy(() => import("productDetails/…"))         │
+│        └─ <ProductDetails productId={id} />                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+In code, this is the `RemoteWrapper` helper:
+
+```jsx
+const RemoteWrapper = ({ name, fallbackLabel, fallbackPath, children }) => (
+  <RemoteErrorBoundary name={name} fallbackLabel={fallbackLabel} fallbackPath={fallbackPath}>
+    <React.Suspense fallback={<Box>Loading {name}…</Box>}>
+      {children}
+    </React.Suspense>
+  </RemoteErrorBoundary>
+);
+
+// Used on every route:
+<Route path="/product/:id" element={<ProductDetailsWrapper />} />
+<Route path="/cart"        element={<RemoteWrapper name="Cart"><Cart /></RemoteWrapper>} />
+<Route path="/orders"      element={<RemoteWrapper name="Orders"><Orders /></RemoteWrapper>} />
+// ...etc
+```
+
+### The Five Error Scenarios
+
+#### Scenario 1 — Server is completely down (port not running)
+
+| | |
+|---|---|
+| **Error type** | `ChunkLoadError` / `Failed to fetch` |
+| **Caught by** | `RemoteErrorBoundary.getDerivedStateFromError()` |
+| **User sees** | Error card with a dev-mode hint showing which `npm run start:X` command to run |
+| **Rest of app** | ✅ Navigation, Home, Cart, Orders all work normally — only the failed route shows the error card |
+
+```
+Before fix:  entire app → white screen
+After fix:   /product/42 → error card | nav ✅ | home ✅ | cart ✅
+```
+
+#### Scenario 2 — User retries after server comes back
+
+The **"Try Again"** button increments `retryKey` in state. Because the `<React.Fragment key={retryKey}>` wrapper changes its `key` prop, React completely **unmounts and remounts** all children from scratch. `React.lazy()` fires a fresh network request — this time the server is up, so it succeeds and the component renders normally.
+
+```
+User: [Try Again]
+  → retryKey: 0 → 1
+  → React destroys old children (the error state is cleared)
+  → React.lazy() fires a new fetch to http://localhost:3001/remoteEntry.js
+  → Fetch succeeds → ProductDetails renders
+```
+
+#### Scenario 3 — Module loads but crashes during render (JS bug)
+
+If ProductDetails loads successfully but throws a JavaScript error during rendering (e.g. accessing `.name` on `undefined`), the same `RemoteErrorBoundary` catches it:
+
+```jsx
+// example bug in ProductDetails.js
+const name = product.specs.dimensions.weight; // TypeError: Cannot read 'dimensions'
+```
+
+```
+Component throws during render()
+  → getDerivedStateFromError() catches it
+  → componentDidCatch() logs: TypeError + full component stack trace
+  → Error card renders with the raw error message (visible in dev mode)
+  → The rest of the app continues working
+```
+
+In development, the raw error message is shown in an amber code block. In production (`NODE_ENV === "production"`), only the generic message is shown — the actual error goes to your logging service.
+
+#### Scenario 4 — Shared component (ProductCard) fails on the Home page
+
+`ProductCard` is a **shared component exposed from the product-details MFE** (port 3001). It is rendered inside the Home page product grid — not inside a route-level boundary. This means its error isolation is different.
+
+```
+Home page grid uses React.lazy() for ProductCard:
+
+const ProductCard = React.lazy(() => import("productDetails/ProductCard"));
+
+// Inside Home's product grid:
+<React.Suspense fallback={<SkeletonCards />}>
+  {displayed.map(p => <ProductCard key={p.id} ... />)}
+</React.Suspense>
+```
+
+| State | What user sees |
+|---|---|
+| Module loading (first visit) | Skeleton shimmer cards — same UX as data loading |
+| Module loaded (cached) | Real cards — all subsequent renders are synchronous |
+| Port 3001 down | Skeleton cards stay visible permanently (Suspense stays in loading state) OR error card if an ErrorBoundary wraps the Suspense |
+| Port 3001 down AND user visits `/product/:id` | Error card on the PDP route — the same `remoteEntry.js` fetch fails for both modules |
+
+**Why this differs from page-level remotes:**
+
+Page-level remotes (`ProductDetails`, `Cart`, etc.) are only loaded when the user navigates to that route. `ProductCard` is loaded on the **Home page** — the landing page. If port 3001 is completely down, the home page will show skeleton cards until the Suspense times out.
+
+The safest pattern is to also wrap the Suspense boundary in an `ErrorBoundary`:
+
+```jsx
+// Defensive pattern — wraps both the load wait AND load failure
+<RemoteErrorBoundary name="Product Cards" fallbackLabel="Refresh" fallbackPath="/">
+  <React.Suspense fallback={<SkeletonGrid />}>
+    {displayed.map(p => <ProductCard key={p.id} ... />)}
+  </React.Suspense>
+</RemoteErrorBoundary>
+```
+
+This degrades gracefully: if port 3001 never comes up, the user sees an error card instead of endless skeletons, with a "Try Again" button.
+
+#### Scenario 5 — New `exposes` entry added but dev server not restarted
+
+This is a **development-only failure mode** that produces a very specific error:
+
+```
+Error: Module "./ProductCard" does not exist in container.
+```
+
+**Root cause:** Webpack-dev-server reads `webpack.config.js` **once at startup** and holds the module manifest (`remoteEntry.js`) in memory. If you add a new entry to `exposes` while the server is running, the in-memory manifest still only knows about the old entries — no hot-reload occurs for config changes, only for source files.
+
+```
+Timeline of the failure:
+
+1. product-details server starts → compiles → exposes only ./ProductDetails
+2. Developer adds "./ProductCard" to exposes in webpack.config.js
+3. HMR fires for the source change... but webpack.config.js is NOT watched by HMR
+4. In-memory remoteEntry.js still shows: { exposes: ["./ProductDetails"] }
+5. Host tries: import("productDetails/ProductCard")
+6. Remote container checks its manifest → "ProductCard" not found
+7. Error thrown: Module "./ProductCard" does not exist in container
+```
+
+**Fix:** Restart the product-details dev server:
+```bash
+# Stop the running server (Ctrl+C), then:
+cd product-details && npm start
+
+# Or restart just product-details while keeping other MFEs running:
+npm run start:product
+```
+
+After restart, webpack recompiles from the config file and the new expose entry is registered:
+```
+Module Federation: Exposes
+  ./ProductDetails → ./src/ProductDetails
+  ./ProductCard    → ./src/ProductCard    ← now registered
+```
+
+This error **cannot happen in production** — production builds are compiled once from the final config, so the manifest always reflects the current `exposes` entries.
+
+### Navigation Has Its Own Isolated Boundary
+
+The Navigation bar (always mounted, always visible) has its own separate `ErrorBoundary`:
+
+```jsx
+// host/src/App.js
+<RemoteErrorBoundary name="Navigation" fallbackLabel="Home" fallbackPath="/">
+  <React.Suspense fallback={<Box sx={{ height: 64, bgcolor: "secondary.main" }} />}>
+    <Navigation />
+  </React.Suspense>
+</RemoteErrorBoundary>
+```
+
+This is intentional isolation. If the Navigation MFE (port 3004) fails:
+- **Without isolation:** App crashes → white screen
+- **With isolation:** A slim dark bar (the `Suspense` fallback height placeholder) shows instead of the navbar. The page content still renders. Users can still navigate using footer links or by typing URLs.
+
+### What Each State Looks Like to the User
+
+```
+┌──────────────────────────────────────┬─────────────────────────────────────────────┐
+│ State                                │ What user sees                              │
+├──────────────────────────────────────┼─────────────────────────────────────────────┤
+│ Normal (module loads)                │ Component renders — nothing unusual         │
+│ Loading page-level remote (~1s)      │ "Loading Product Details…" text             │
+│ Loading ProductCard (first visit)    │ Skeleton shimmer cards (same as data load)  │
+│ ProductCard cached (all later visits)│ Cards render instantly — no Suspense needed │
+│ Port down (page-level remote)        │ ⚠️ Error card with Try Again + Go Home     │
+│ Port down (ProductCard / port 3001)  │ Skeleton cards or error card (see §15)      │
+│ Module loads but JS crashes          │ ⚠️ Error card with raw message (dev only)  │
+│ After retry (server came back)       │ Component renders normally                  │
+│ Navigation fails (port 3004 down)    │ Dark placeholder bar, rest of page works    │
+│ New expose not in restarted server   │ "Module does not exist in container" error  │
+└──────────────────────────────────────┴─────────────────────────────────────────────┘
+```
+
+### Lifecycle of a Failed Remote Load
+
+```
+Time 0ms:   User navigates to /product/42
+Time 0ms:   React.lazy() triggers — Promise is "pending"
+Time 0ms:   React.Suspense activates — renders "Loading Product Details…"
+Time 50ms:  Browser fetches http://localhost:3001/remoteEntry.js
+Time 50ms:  Connection refused → fetch() throws a TypeError
+Time 50ms:  React.lazy()'s Promise rejects with ChunkLoadError
+Time 51ms:  React.Suspense sees rejection — re-throws the error upward
+Time 51ms:  RemoteErrorBoundary.getDerivedStateFromError() intercepts it
+            → { hasError: true, error: ChunkLoadError }
+Time 51ms:  componentDidCatch() logs to console
+Time 52ms:  ErrorBoundary re-renders with the error card UI
+Time 52ms:  ⚠️ Card is visible. Navigation ✅. Footer ✅. App alive.
+```
+
+### Production Upgrade Path
+
+In a real production system, replace the `console.error` in `componentDidCatch` with a proper error reporting service:
+
+```js
+componentDidCatch(error, info) {
+  // Sentry
+  Sentry.captureException(error, {
+    extra: { componentStack: info.componentStack },
+    tags: { mfe: this.props.name },
+  });
+
+  // Or Datadog RUM
+  datadogRum.addError(error, { mfe: this.props.name });
+}
+```
+
+This gives you an alert every time a remote MFE fails to load in production — letting you catch deployment issues before users report them.
+
+---
+
 *This document reflects the exact code in this repository. File references:*
-- *`host/src/App.js` — routing, Home page, wishlist*
+- *`host/src/App.js` — routing, Home page, wishlist, `RemoteErrorBoundary`, `RemoteWrapper`, lazy `ProductCard`*
 - *`host/webpack.config.js` — remote declarations, shared singletons*
 - *`navigation/src/Navigation.js` — cart badge, nested remotes*
 - *`navigation/webpack.config.js` — nested remote declarations*
 - *`cart/src/Cart.js` — checkout, Firestore cart writes*
-- *`product-details/src/ProductDetails.js` — add to cart/wishlist*
+- *`product-details/src/ProductDetails.js` — PDP: add to cart/wishlist*
+- *`product-details/src/ProductCard.js` — shared card component (exposed from same remote as ProductDetails)*
+- *`product-details/webpack.config.js` — exposes both `./ProductDetails` and `./ProductCard`*
 - *`auth/src/UserMenu.js` — auth state, role check, logout*
 - *`orders/src/Orders.js` — real-time order tracking*
 - *`admin/src/Admin.js` — admin guard, status updates*

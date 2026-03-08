@@ -58,13 +58,15 @@ Every UI section is an independent, deployable microfrontend that composes seaml
 | Module | Port | Container name | Exposes | Standalone URL |
 |---|---|---|---|---|
 | **Host** | 3000 | `host` | *(shell)* | http://localhost:3000 |
-| **ProductDetails** | 3001 | `productDetails` | `./ProductDetails` | http://localhost:3001 |
+| **ProductDetails** | 3001 | `productDetails` | `./ProductDetails`, `./ProductCard` | http://localhost:3001 |
 | **Cart** | 3002 | `cart` | `./Cart` | http://localhost:3002 |
 | **Navigation** | 3004 | `navRemote` | `./Navigation` | http://localhost:3004 |
 | **Search** | 3005 | `searchRemote` | `./Search` | http://localhost:3005 |
 | **Auth** | 3006 | `authRemote` | `./Login`, `./UserMenu` | http://localhost:3006 |
 | **Orders** | 3007 | `ordersRemote` | `./Orders` | http://localhost:3007 |
 | **Admin** | 3008 | `adminRemote` | `./Admin` | http://localhost:3008 |
+
+> ℹ️ The `productDetails` remote exposes **two modules** from the same `remoteEntry.js`: the full PDP page (`./ProductDetails`) and the reusable product card (`./ProductCard`) used in the home grid. One server, one manifest, two components.
 
 > ℹ️ There is **no local backend server**. All data is served directly from Firebase/Firestore.
 
@@ -426,6 +428,7 @@ mfe/
 ├── product-details/         # Product detail page MFE  (port 3001)
 │   └── src/
 │       ├── ProductDetails.js # MUI layout — add to cart + wishlist (Firestore)
+│       ├── ProductCard.js    # ★ Shared card component — exposed & consumed by host home grid
 │       ├── theme.js          # Copy of shared MUI theme
 │       ├── api.js            # Firestore product read
 │       └── firebase.js
@@ -477,6 +480,11 @@ React, ReactDOM, React Router, Firebase, **`@mui/material`**, **`@emotion/react`
 ### Nested remotes
 Navigation (a remote itself) loads Search as its own nested remote — demonstrating that Module Federation remotes can consume other remotes.
 
+### One remote, multiple exposed modules
+The `productDetails` MFE exposes both `./ProductDetails` (the full PDP page) and `./ProductCard` (the reusable card used in the home grid). The host fetches `remoteEntry.js` from port 3001 exactly once — both modules are served from that single manifest. This keeps related components co-located in one MFE without any code duplication.
+
+> ⚠️ If you add a new `exposes` entry to a webpack config while the dev server is already running, you **must restart that dev server** — webpack reads the config only at startup and does not hot-reload it. You'll see `Module "./X" does not exist in container` until you restart.
+
 ### Auto-seed
 On the very first app load, `seedFirestore.js` checks if `/products` is empty and batch-writes all 32 products + 6 categories. Subsequent loads skip the seed (checked with a single `limit(1)` query).
 
@@ -510,6 +518,7 @@ The `role` field in `/users/{uid}` controls admin access. The Admin MFE checks t
 | Remote chunks loading from wrong origin | Set an absolute `publicPath` (e.g., `http://localhost:3001/`) in the remote's webpack config |
 | Page reloads on sub-routes return 404 | Add `historyApiFallback: { index: "/" }` to `devServer` in webpack config |
 | Module not found at startup | Start remotes **before** the host. Wait for `compiled successfully` in each terminal. |
+| `Module "./X" does not exist in container` | You added a new entry to `exposes` in `webpack.config.js` but the dev server was not restarted. Stop it (`Ctrl+C`) and run `npm start` again in that MFE's directory. |
 | MUI styles not applying / theme mismatch | Ensure `@mui/material`, `@emotion/react`, and `@emotion/styled` are all `singleton: true` in **every** `webpack.config.js` shared block |
 | MUI icons missing | Run `npm install @mui/icons-material` inside the affected MFE directory |
 
