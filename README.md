@@ -24,6 +24,8 @@ Every UI section is an independent, deployable microfrontend that composes seaml
 │  Route /             → Home page (in Host)                      │
 │  Route /product/:id  → ProductDetails MFE  (port 3001)          │
 │  Route /cart         → Cart MFE  (port 3002)                    │
+│  Route /orders       → Orders MFE  (port 3007)                  │
+│  Route /admin        → Admin MFE  (port 3008)                   │
 │  Route /login        → Auth MFE  (port 3006)                    │
 └──────────────────────────────┬──────────────────────────────────┘
                                │  Firebase SDK (direct)
@@ -35,10 +37,10 @@ Every UI section is an independent, deployable microfrontend that composes seaml
 │  Firestore                                                      │
 │   /products/{id}               ← product catalogue (32 items)  │
 │   /categories/{slug}           ← 6 categories                  │
-│   /users/{uid}                 ← user profiles                 │
+│   /users/{uid}                 ← user profiles + roles          │
 │   /carts/{uid}/items/{pid}     ← per-user cart (real-time)     │
 │   /wishlists/{uid}/items/{pid} ← per-user wishlist             │
-│   /orders/{orderId}            ← order history                 │
+│   /orders/{orderId}            ← order history + status         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -46,7 +48,7 @@ Every UI section is an independent, deployable microfrontend that composes seaml
 
 | Consumer | Loads remotes |
 |---|---|
-| **Host** | `navRemote`, `productDetails`, `cart`, `searchRemote`, `authRemote` |
+| **Host** | `navRemote`, `productDetails`, `cart`, `searchRemote`, `authRemote`, `ordersRemote`, `adminRemote` |
 | **Navigation** | `searchRemote` ← nested remote |
 
 ---
@@ -61,6 +63,8 @@ Every UI section is an independent, deployable microfrontend that composes seaml
 | **Navigation** | 3004 | `navRemote` | `./Navigation` | http://localhost:3004 |
 | **Search** | 3005 | `searchRemote` | `./Search` | http://localhost:3005 |
 | **Auth** | 3006 | `authRemote` | `./Login`, `./UserMenu` | http://localhost:3006 |
+| **Orders** | 3007 | `ordersRemote` | `./Orders` | http://localhost:3007 |
+| **Admin** | 3008 | `adminRemote` | `./Admin` | http://localhost:3008 |
 
 > ℹ️ There is **no local backend server**. All data is served directly from Firebase/Firestore.
 
@@ -127,9 +131,10 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Orders — owner read, any authenticated write (checkout)
+    // Orders — owner can read their own; any authenticated user can write (checkout)
+    // Admin reads all orders via a broad allow (tighten in production with custom claims)
     match /orders/{orderId} {
-      allow read:  if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read:  if request.auth != null;
       allow write: if request.auth != null;
     }
   }
@@ -183,6 +188,8 @@ cd cart            && npm install && cd ..
 cd navigation      && npm install && cd ..
 cd search          && npm install && cd ..
 cd auth            && npm install && cd ..
+cd orders          && npm install && cd ..
+cd admin           && npm install && cd ..
 ```
 </details>
 
@@ -196,7 +203,7 @@ cd auth            && npm install && cd ..
 bash start-all.sh
 ```
 
-Starts all 6 MFEs in the background and prints a status summary. Then open **http://localhost:3000** 🎉
+Starts all 8 MFEs in the background and prints a status summary. Then open **http://localhost:3000** 🎉
 
 ### Option B — Individual terminals
 
@@ -218,7 +225,13 @@ npm run start:product
 # Terminal 5 — Cart MFE
 npm run start:cart
 
-# Terminal 6 — Host (loads everything)
+# Terminal 6 — Orders MFE
+npm run start:orders
+
+# Terminal 7 — Admin MFE
+npm run start:admin
+
+# Terminal 8 — Host (loads everything)
 npm run start:host
 ```
 
@@ -228,13 +241,15 @@ Then open **http://localhost:3000** 🎉
 
 | Script | Description |
 |---|---|
-| `npm run install:all` | Install deps for all modules |
+| `npm run install:all` | Install deps for all 8 modules |
 | `npm run start:host` | Start host shell (port 3000) |
 | `npm run start:product` | Start ProductDetails MFE (port 3001) |
 | `npm run start:cart` | Start Cart MFE (port 3002) |
 | `npm run start:navigation` | Start Navigation MFE (port 3004) |
 | `npm run start:search` | Start Search MFE (port 3005) |
 | `npm run start:auth` | Start Auth MFE (port 3006) |
+| `npm run start:orders` | Start Orders MFE (port 3007) |
+| `npm run start:admin` | Start Admin MFE (port 3008) |
 | `npm run start:all` | Start all via `start-all.sh` |
 | `npm run build:all` | Production build for all MFEs |
 
@@ -251,8 +266,61 @@ Every MFE is independently runnable — no host required.
 | http://localhost:3004 | Navigation bar |
 | http://localhost:3005 | Search bar with live product lookup |
 | http://localhost:3006 | Login page |
+| http://localhost:3007 | Order history page |
+| http://localhost:3008 | Admin order management portal |
 
-> The standalone pages show a "Standalone Mode" banner so you know they're running independently.
+> The standalone pages show a yellow "Standalone Mode" banner so you know they're running independently.
+
+---
+
+## 📦 Orders MFE
+
+Accessible at `/orders` (or standalone at `http://localhost:3007`).
+
+**Features:**
+- Requires sign-in — shows auth gate if not logged in
+- **Orders list** — cards showing order number, date, item previews, total, and a live delivery progress bar
+- **Filter tabs** — All / Confirmed / Packed / Shipped / Delivered / Delayed / Cancelled
+- **Order detail view** — click any card to see:
+  - Visual delivery timeline (Confirmed → Packed → Shipped → Delivered)
+  - Full item table (image, name, brand, qty, unit price, line total)
+  - Price breakdown (subtotal, discount, tax, total paid)
+  - Status history (updated by admin)
+- **Real-time** — uses Firestore `onSnapshot`, so status changes made by admin appear instantly without a refresh
+
+---
+
+## 🛠️ Admin MFE
+
+Accessible at `/admin` (or standalone at `http://localhost:3008`).  
+Only users with `role: "admin"` in Firestore can use the portal.
+
+**Features:**
+- **Stats dashboard** — Total orders · Total revenue · Active orders · Orders today
+- **Filter strip** — filter by any status with live counts
+- **Search** — by order ID, customer email, or product name
+- **Sort** — newest / oldest / highest value / lowest value
+- **Order rows** (collapsed by default, click to expand):
+  - *Collapsed:* order ID, customer email, item count + emoji preview, total, status badge, quick-action buttons
+  - *Expanded:* full item table, price summary, status history, all status buttons
+- **Status transitions** — guided workflow buttons follow the logical order:
+  - `Confirmed → [Pack] [Cancel]`
+  - `Packed → [Ship] [Cancel]`
+  - `Shipped → [Deliver] [Delay] [Cancel]`
+  - `Delayed → [Ship] [Deliver] [Cancel]`
+  - In the expanded view, **any** status can be set directly
+- **Status history** — every change is appended to `statusHistory[]` in Firestore
+- **Toast notifications** — confirmation after every status update
+- **Access control** — non-admin users see an "Access Denied" screen
+
+### How to grant admin access
+
+1. Firebase Console → **Firestore** → `users` collection
+2. Open the user document (match by email)
+3. Edit the `role` field: change `"user"` → `"admin"`
+4. Save, then sign out and back in
+
+The **🛠️ Admin Portal** link will appear at the top of the user dropdown menu.
 
 ---
 
@@ -274,7 +342,7 @@ All data is stored in Cloud Firestore. The `products` and `categories` collectio
 
 /users/{uid}                       ← created on first sign-in
   uid, email, displayName,
-  photoURL, avatar, role,
+  photoURL, avatar, role,          ← role: "user" | "admin"
   provider, createdAt, updatedAt
 
 /carts/{uid}                       ← created on first cart add
@@ -295,7 +363,10 @@ All data is stored in Cloud Firestore. The `products` and `categories` collectio
 /orders/{orderId}                  ← created on checkout
   orderId, userId, userEmail,
   items[], subtotal, discount,
-  tax, total, status, createdAt
+  tax, total,
+  status,                          ← confirmed | packed | shipped | delivered | delayed | cancelled
+  statusHistory[],                 ← audit trail: [{ status, at }]
+  statusUpdatedAt, createdAt
 ```
 
 ---
@@ -313,6 +384,7 @@ The following accounts are **auto-created in Firebase** on first login (no manua
 | `emma.davis` | `pass123` | Emma Davis | User |
 | `demo` | `demo` | Demo User | User |
 
+> After first login, manually set `role: "admin"` in Firestore for any account you want to use as admin.  
 > You can also **Sign in with Google** — a Firestore profile is created automatically.
 
 ---
@@ -329,36 +401,46 @@ mfe/
 │       ├── seedData.js      # 32 products + 6 categories (seed data)
 │       └── seedFirestore.js # Auto-seeds Firestore on first load
 │
-├── navigation/              # Top nav bar MFE
+├── navigation/              # Top nav bar MFE  (port 3004)
 │   └── src/
 │       ├── Navigation.js    # Navbar + cart badge (Firestore) + lazy Search
 │       └── firebase.js
 │
-├── search/                  # Myntra-style search MFE
+├── search/                  # Myntra-style search MFE  (port 3005)
 │   └── src/
 │       ├── Search.js        # Live search with keyboard navigation
 │       ├── api.js           # Firestore products read
 │       └── firebase.js
 │
-├── product-details/         # Product detail page MFE
+├── product-details/         # Product detail page MFE  (port 3001)
 │   └── src/
 │       ├── ProductDetails.js # Add to cart + wishlist (Firestore)
 │       ├── api.js            # Firestore product read
 │       └── firebase.js
 │
-├── cart/                    # Shopping cart MFE
+├── cart/                    # Shopping cart MFE  (port 3002)
 │   └── src/
-│       ├── Cart.js          # Real-time cart + checkout → /orders
+│       ├── Cart.js          # Real-time cart + checkout → creates /orders doc
 │       └── firebase.js
 │
-├── auth/                    # Authentication MFE
+├── auth/                    # Authentication MFE  (port 3006)
 │   └── src/
 │       ├── Login.js         # Email/Password + Google Sign-In
-│       ├── UserMenu.js      # Avatar dropdown + logout
+│       ├── UserMenu.js      # Avatar dropdown + admin link + logout
 │       ├── api.js           # Firebase Auth wrapper + demo user provisioning
 │       └── firebase.js
 │
-├── start-all.sh             # One-command launcher
+├── orders/                  # Order history MFE  (port 3007)
+│   └── src/
+│       ├── Orders.js        # Order list + detail view (real-time Firestore)
+│       └── firebase.js
+│
+├── admin/                   # Admin portal MFE  (port 3008)
+│   └── src/
+│       ├── Admin.js         # Order management — view all orders, change status
+│       └── firebase.js
+│
+├── start-all.sh             # One-command launcher (all 8 MFEs)
 └── package.json             # Root scripts
 ```
 
@@ -385,6 +467,12 @@ On the very first app load, `seedFirestore.js` checks if `/products` is empty an
 ### Category-aware routing
 Clicking a category breadcrumb in ProductDetails navigates to `/?category=Audio`. The Home component reads `useSearchParams()` and pre-selects the right tab.
 
+### Real-time updates
+Cart badge, cart page, and order history all use Firestore `onSnapshot` listeners. When an admin changes an order status, the customer's Orders page updates **instantly** — no polling or page refresh needed.
+
+### Role-based access
+The `role` field in `/users/{uid}` controls admin access. The Admin MFE checks this field on load — non-admins see an Access Denied screen with exact instructions for how to elevate access in Firestore.
+
 ---
 
 ## 🐛 Troubleshooting
@@ -395,6 +483,9 @@ Clicking a category breadcrumb in ProductDetails navigates to `/?category=Audio`
 | Login fails with `auth/operation-not-allowed` | Enable **Email/Password** sign-in in Firebase Console → Authentication → Sign-in method |
 | Google sign-in popup blocked | Allow popups for `localhost` in your browser settings |
 | Cart/wishlist not saving | Ensure the user is **signed in** — cart is tied to Firebase UID |
+| Admin Portal not visible in dropdown | Set `role: "admin"` in Firestore → `users/{uid}`, then sign out and back in |
+| Admin Portal shows "Access Denied" | Same as above — Firestore role field must be `"admin"` |
+| Orders not appearing in Admin portal | Check Firestore rules allow admin to read all orders (see rules section above) |
 | `Shared module is not available for eager consumption` | Ensure `index.js` only does `import("./bootstrap")` — not a direct import |
 | `fn is not a function` loading a remote | The MFE container name conflicts with a browser global (e.g., `window.navigation`). Rename the container. |
 | Remote chunks loading from wrong origin | Set an absolute `publicPath` (e.g., `http://localhost:3001/`) in the remote's webpack config |
