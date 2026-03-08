@@ -381,7 +381,7 @@ Admin access is controlled by the `role` field in Firestore, **not** by client-s
 
 ```
 /users/{uid}
-  role: "admin"   ← set manually in Firestore Console
+  role: "admin"   ← set in Firestore Console OR auto-assigned for demo admin users
 ```
 
 ```jsx
@@ -399,6 +399,42 @@ setIsAdmin(snap.exists() && snap.data().role === "admin");
 ```
 
 The admin check happens server-side (Firestore read) — a user cannot fake admin access by manipulating client state.
+
+### Role Preservation — Never Downgraded on Login
+
+A critical detail in `auth/src/api.js`: **the `role` field is never overwritten** when an existing user signs in. The `saveProfile()` function uses the following priority chain:
+
+```
+Priority:  existing Firestore role  →  extra.role (new accounts only)  →  "user"
+```
+
+```js
+// auth/src/api.js — saveProfile()
+const existingSnap = await getDoc(ref);
+const existingRole = existingSnap.exists() ? existingSnap.data().role : null;
+
+const profileData = {
+  // ...
+  // Preserves role set in Firebase Console; only falls back to default for new docs
+  role: existingRole || extra.role || "user",
+};
+```
+
+**Why this matters:** Without this guard, every login would call `setDoc(..., { role: "user" }, { merge: true })` and silently reset any `"admin"` role you assigned in the Firebase Console. With the guard:
+
+| Scenario | Result |
+|---|---|
+| Existing user logs in (any method) | Existing Firestore `role` is preserved unchanged |
+| Demo user signs in for the first time | `role` from `DEMO_USERS` registry is used (e.g. `"admin"` for `john.doe`) |
+| Brand-new Google / email user | Defaults to `"user"` |
+
+To promote any user to admin, simply update their document in the Firebase Console:
+
+```
+Firestore → users → {uid} → role: "admin"
+```
+
+The change takes effect on the user's **next** page load (the `onAuthStateChanged` listener re-reads the Firestore profile).
 
 ---
 
@@ -776,28 +812,111 @@ In standalone, Cart provides its own router context so `useNavigate` works. It s
 
 ### The Problem
 
-MUI's `ThemeProvider` uses React Context. React Context only crosses component tree boundaries when there's a single shared Context object. Since all MFEs share the **same React instance** (singleton), they also share the same React Context.
+MUI's `ThemeProvider` uses React Context. Context only propagates **down** the React component tree — it does not cross module boundaries on its own.
 
-However, if each MFE creates its own `ThemeProvider`, the inner `ThemeProvider` overrides the outer one. The result would be MFEs with inconsistent themes.
+Two failure modes existed before the current solution:
 
-### The Solution
+1. **Each MFE had its own `ThemeProvider`** → nested providers override each other; tiny colour/spacing differences creep in between modules.
+2. **`shared/theme.js` imported `createTheme` from `@mui/material/styles`** → webpack could not resolve `@mui/material` from `shared/` (no `node_modules` there), causing a build error.
 
-A single `theme.js` file is **physically copied** into every MFE's `src/` directory:
+### The Solution — Centralised Config, Local `createTheme`
+
+The architecture has two layers:
 
 ```
-host/src/theme.js              ← source of truth
-navigation/src/theme.js        ← identical copy
-search/src/theme.js            ← identical copy
-product-details/src/theme.js   ← identical copy
-cart/src/theme.js              ← identical copy
-auth/src/theme.js              ← identical copy
-orders/src/theme.js            ← identical copy
-admin/src/theme.js             ← identical copy
+shared/theme.js          ← pure JS object — the single source of truth
+                            NO MUI imports; just palette, typography, shape, component overrides
+
+each MFE's src/theme.js  ← imports themeConfig from shared/ and calls createTheme() locally
+                            createTheme resolves from each MFE's own node_modules ✓
 ```
 
-Each MFE imports its local copy, but because `@mui/material` is a singleton, `createTheme` produces a theme object that is compatible across all MFEs. Every `ThemeProvider` in every MFE uses the same pink primary colour, Inter font, and component overrides.
+**`shared/theme.js`** — exports a plain configuration object:
 
-When you want to change the primary colour globally, edit ONE file (`host/src/theme.js`) and copy it to the others.
+```js
+// shared/theme.js — no MUI import, safe to cross module boundaries
+const themeConfig = {
+  palette: {
+    primary:    { main: "#ff3f6c", ... },   // Myntra-pink
+    secondary:  { main: "#282c3f", ... },
+    // ...
+  },
+  typography: { fontFamily: '"Inter", sans-serif', ... },
+  shape:      { borderRadius: 4 },
+  components: { MuiButton: { ... }, MuiCard: { ... }, ... },
+};
+export default themeConfig;
+```
+
+**Each MFE's `src/theme.js`** — imports the config and calls `createTheme` locally:
+
+```js
+// navigation/src/theme.js  (and every other MFE — same pattern)
+import { createTheme } from "@mui/material/styles";  // resolved from navigation/node_modules
+import themeConfig from "../../shared/theme";         // plain JS object — no resolution issue
+
+const theme = createTheme(themeConfig);
+export default theme;
+```
+
+### How ThemeProvider Is Applied
+
+```
+┌─ Host App (port 3000) ──────────────────────────────────────┐
+│  <ThemeProvider theme={theme}>          ← ONE provider       │
+│    <CssBaseline />                                           │
+│    <BrowserRouter>                                           │
+│      <Navigation />   ← remote, but shares same MUI Context │
+│      <Routes>                                                │
+│        <ProductDetails />  ← remote, inherits Context        │
+│        <Cart />            ← remote, inherits Context        │
+│        <Orders />          ← remote, inherits Context        │
+│        <Admin />           ← remote, inherits Context        │
+│      </Routes>                                               │
+│    </BrowserRouter>                                          │
+│  </ThemeProvider>                                            │
+└──────────────────────────────────────────────────────────────┘
+```
+
+MFE **components** (`Navigation.js`, `Cart.js`, etc.) do **not** contain their own `ThemeProvider`. They rely entirely on the host's provider. This works because all MFEs share the **same React singleton** — there is only one React Context instance, so `ThemeProvider` set at the host level is visible inside every remote component.
+
+### Standalone Mode — Each MFE Applies Its Own ThemeProvider
+
+When an MFE runs independently (e.g. `navigation` on port 3004 during development), the host's `ThemeProvider` does not exist. Each MFE's `bootstrap.js` handles this:
+
+```jsx
+// navigation/src/bootstrap.js  (same pattern in all MFE bootstrap files)
+import theme from "./theme";   // local createTheme(themeConfig)
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+
+const App = () => (
+  <ThemeProvider theme={theme}>   {/* ← only active in standalone mode */}
+    <CssBaseline />
+    <BrowserRouter>
+      <Navigation />
+    </BrowserRouter>
+  </ThemeProvider>
+);
+```
+
+### Decision Flow
+
+```
+Is MFE loaded by the host?
+  YES → host's <ThemeProvider> is active → MFE component needs no ThemeProvider
+  NO  (standalone dev) → bootstrap.js wraps component in its own <ThemeProvider>
+```
+
+### Changing the Theme Globally
+
+Edit **one file only**:
+
+```
+shared/theme.js   ← change any palette colour, font, border-radius, component override
+```
+
+All 8 MFEs pick it up automatically on their next build — no need to touch individual `src/theme.js` files because those just call `createTheme(themeConfig)` and pass the imported object through.
 
 ---
 
