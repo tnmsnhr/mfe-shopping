@@ -12,6 +12,7 @@ import "./App.css";
 const Navigation     = React.lazy(() => import("navigation/Navigation"));
 const ProductDetails = React.lazy(() => import("productDetails/ProductDetails"));
 const Cart           = React.lazy(() => import("cart/Cart"));
+const Orders         = React.lazy(() => import("ordersRemote/Orders"));
 const Login          = React.lazy(() => import("authRemote/Login"));
 
 // Helpers
@@ -293,6 +294,11 @@ function App() {
             <Route path="/"            element={<Home />} />
             <Route path="/product/:id" element={<ProductDetailsWrapper />} />
             <Route path="/cart"        element={<CartWrapper />} />
+            <Route path="/orders"      element={
+              <React.Suspense fallback={<div className="page-loading"><div className="spinner" />Loading...</div>}>
+                <Orders />
+              </React.Suspense>
+            } />
             <Route path="/login"       element={
               <React.Suspense fallback={<div className="page-loading"><div className="spinner" />Loading...</div>}>
                 <Login />
@@ -325,7 +331,13 @@ function App() {
               </ul>
             </div>
             <div className="footer-col">
-              <h4>CUSTOMER POLICIES</h4>
+              <h4>MY ACCOUNT</h4>
+              <ul>
+                <li><Link to="/orders">My Orders</Link></li>
+                <li><Link to="/cart">My Cart</Link></li>
+                <li><Link to="/login">Sign In / Register</Link></li>
+              </ul>
+              <h4 style={{ marginTop: "1rem" }}>CUSTOMER POLICIES</h4>
               <ul>
                 <li><a href="/">Contact Us</a></li>
                 <li><a href="/">FAQ</a></li>

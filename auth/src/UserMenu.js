@@ -159,7 +159,7 @@ const UserMenu = () => {
 
           <div className="dropdown-divider" />
 
-          <button className="dropdown-item" onClick={() => goTo("/")} role="menuitem">
+          <button className="dropdown-item" onClick={() => goTo("/orders")} role="menuitem">
             <span>📦</span> My Orders
           </button>
           <button className="dropdown-item" onClick={() => goTo("/")} role="menuitem">
