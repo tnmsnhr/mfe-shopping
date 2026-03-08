@@ -3,445 +3,464 @@ import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import "./Orders.css";
 
-// ── Status config ───────────────────────────────────────────────
-const STATUS_STEPS  = ["Confirmed", "Packed", "Shipped", "Delivered"];
-const STATUS_COLORS = {
-  confirmed: { bg: "#e8f5e9", text: "#2e7d32", dot: "#43a047" },
-  packed:    { bg: "#e3f2fd", text: "#1565c0", dot: "#1e88e5" },
-  shipped:   { bg: "#fff8e1", text: "#e65100", dot: "#ffb300" },
-  delivered: { bg: "#e8f5e9", text: "#1b5e20", dot: "#2e7d32" },
-  delayed:   { bg: "#fff3e0", text: "#bf360c", dot: "#ff6d00" },
-  cancelled: { bg: "#fce4ec", text: "#b71c1c", dot: "#e53935" },
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import Box from "@mui/material/Box";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Paper from "@mui/material/Paper";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
+import Skeleton from "@mui/material/Skeleton";
+import Stepper from "@mui/material/Stepper";
+import Step from "@mui/material/Step";
+import StepLabel from "@mui/material/StepLabel";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
+import theme from "./theme";
+
+// ── Status config ────────────────────────────────────────────
+const TIMELINE_STEPS = ["Confirmed", "Packed", "Shipped", "Delivered"];
+
+const STATUS_CONFIG = {
+  confirmed: { label: "Confirmed", color: "success",  chipBg: "#e8f5e9", chipColor: "#2e7d32" },
+  packed:    { label: "Packed",    color: "info",     chipBg: "#e3f2fd", chipColor: "#1565c0" },
+  shipped:   { label: "Shipped",   color: "warning",  chipBg: "#fff8e1", chipColor: "#e65100" },
+  delivered: { label: "Delivered", color: "success",  chipBg: "#e8f5e9", chipColor: "#1b5e20" },
+  delayed:   { label: "Delayed",   color: "warning",  chipBg: "#fff3e0", chipColor: "#bf360c" },
+  cancelled: { label: "Cancelled", color: "error",    chipBg: "#fce4ec", chipColor: "#b71c1c" },
 };
 
-const statusStep = (status) =>
-  STATUS_STEPS.findIndex((s) => s.toLowerCase() === status?.toLowerCase());
+const ALL_FILTERS = ["All", "confirmed", "packed", "shipped", "delivered", "delayed", "cancelled"];
 
-// ── Helpers ─────────────────────────────────────────────────────
 const fmtDate = (ts) => {
   if (!ts) return "—";
   const d = ts?.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 };
-
-const fmtTime = (ts) => {
-  if (!ts) return "";
+const fmtDateTime = (ts) => {
+  if (!ts) return "—";
   const d = ts?.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-// ─── Delivery Timeline ───────────────────────────────────────────
-const Timeline = ({ status }) => {
-  const current = statusStep(status);
-  if (status?.toLowerCase() === "cancelled") {
+// ── StatusChip ──────────────────────────────────────────────
+const StatusChip = ({ status }) => {
+  const cfg = STATUS_CONFIG[status?.toLowerCase()] || STATUS_CONFIG.confirmed;
+  return (
+    <Chip
+      label={cfg.label}
+      size="small"
+      sx={{
+        bgcolor: cfg.chipBg,
+        color: cfg.chipColor,
+        fontWeight: 700,
+        fontSize: "0.7rem",
+        height: 22,
+        borderRadius: 1,
+      }}
+    />
+  );
+};
+
+// ── Delivery Timeline ────────────────────────────────────────
+const DeliveryTimeline = ({ status }) => {
+  const lc = status?.toLowerCase();
+  if (lc === "cancelled") {
     return (
-      <div className="order-timeline">
-        <span className="timeline-cancelled-badge">✕ Order Cancelled</span>
-      </div>
+      <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+        <Chip label="✕ Order Cancelled" color="error" variant="outlined" sx={{ fontWeight: 700 }} />
+      </Box>
     );
   }
+  if (lc === "delayed") {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+        <Chip label="⚠️ Delivery Delayed" color="warning" variant="outlined" sx={{ fontWeight: 700 }} />
+      </Box>
+    );
+  }
+  const activeStep = TIMELINE_STEPS.findIndex((s) => s.toLowerCase() === lc);
   return (
-    <div className="order-timeline">
-      {STATUS_STEPS.map((step, i) => (
-        <React.Fragment key={step}>
-          <div
-            className={`timeline-step ${i <= current ? "done" : ""} ${i === current ? "active" : ""}`}
+    <Stepper activeStep={activeStep} alternativeLabel sx={{ pt: 1, pb: 2 }}>
+      {TIMELINE_STEPS.map((label, idx) => (
+        <Step key={label} completed={idx < activeStep}>
+          <StepLabel
+            sx={{
+              "& .MuiStepLabel-label": { fontSize: "0.75rem", fontWeight: idx <= activeStep ? 700 : 400 },
+              "& .MuiStepIcon-root.Mui-active":    { color: "primary.main" },
+              "& .MuiStepIcon-root.Mui-completed": { color: "success.main" },
+            }}
           >
-            <div className="timeline-dot">
-              {i < current ? "✓" : i === current ? "●" : ""}
-            </div>
-            <div className="timeline-label">{step}</div>
-          </div>
-          {i < STATUS_STEPS.length - 1 && (
-            <div className={`timeline-line ${i < current ? "done" : ""}`} />
-          )}
-        </React.Fragment>
+            {label}
+          </StepLabel>
+        </Step>
       ))}
-    </div>
+    </Stepper>
   );
 };
 
-// ─── Order Detail ────────────────────────────────────────────────
+// ── Order Detail View ────────────────────────────────────────
 const OrderDetail = ({ order, onBack }) => {
-  const sc      = STATUS_COLORS[order.status?.toLowerCase()] || STATUS_COLORS.confirmed;
   const savings = order.discount || 0;
-
   return (
-    <div className="order-detail">
-      {/* Header */}
-      <div className="detail-header">
-        <button className="back-btn" onClick={onBack}>← Back to Orders</button>
-        <div className="detail-meta">
-          <div className="detail-order-id">Order #{order.orderId}</div>
-          <div className="detail-date">
-            Placed on {fmtDate(order.createdAt)} at {fmtTime(order.createdAt)}
-          </div>
-        </div>
-        <span className="status-badge" style={{ background: sc.bg, color: sc.text }}>
-          {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-        </span>
-      </div>
+    <Box>
+      <Button startIcon={<ArrowBackIcon />} onClick={onBack} sx={{ mb: 2 }} color="inherit">
+        Back to Orders
+      </Button>
 
-      {/* Delivery timeline */}
-      <div className="detail-card">
-        <h3 className="section-title">Delivery Status</h3>
-        <Timeline status={order.status} />
-      </div>
+      <Paper elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden" }}>
+        {/* Header */}
+        <Box
+          sx={{
+            px: 3, py: 2.5,
+            background: "linear-gradient(135deg, #282c3f 0%, #1a1d2e 100%)",
+            display: "flex",
+            alignItems: { xs: "flex-start", sm: "center" },
+            justifyContent: "space-between",
+            flexDirection: { xs: "column", sm: "row" },
+            gap: 1.5,
+          }}
+        >
+          <Box>
+            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)", letterSpacing: "0.5px" }}>
+              ORDER ID
+            </Typography>
+            <Typography variant="h6" sx={{ color: "#fff", fontWeight: 700, fontFamily: "monospace" }}>
+              {order.orderId}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)" }}>
+              Placed on {fmtDateTime(order.createdAt)}
+            </Typography>
+          </Box>
+          <StatusChip status={order.status} />
+        </Box>
 
-      {/* Items */}
-      <div className="detail-card">
-        <h3 className="section-title">
-          Items Ordered
-          <span className="item-count-badge">{order.items?.length}</span>
-        </h3>
-        <div className="order-items-list">
-          {order.items?.map((item, idx) => (
-            <div key={idx} className="order-item-row">
-              <div className="order-item-emoji">{item.image}</div>
-              <div className="order-item-info">
-                <div className="order-item-name">{item.name}</div>
-                <div className="order-item-brand">{item.brand} · {item.category}</div>
-                <div className="order-item-meta">
-                  <span className="order-item-qty">Qty: {item.quantity}</span>
-                  <span className="order-item-unit-price">${item.price?.toLocaleString()} each</span>
-                </div>
-              </div>
-              <div className="order-item-total">
-                ${(item.price * item.quantity).toLocaleString()}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+        {/* Timeline */}
+        <Box sx={{ px: 3, pt: 2, bgcolor: "#fafafa", borderBottom: "1px solid", borderColor: "divider" }}>
+          <DeliveryTimeline status={order.status} />
+        </Box>
 
-      {/* Price summary */}
-      <div className="detail-card">
-        <h3 className="section-title">Price Details</h3>
-        <div className="price-summary">
-          <div className="price-row">
-            <span>Price ({order.items?.length} item{order.items?.length !== 1 ? "s" : ""})</span>
-            <span>${((order.subtotal || 0) + savings).toFixed(2)}</span>
-          </div>
-          {savings > 0 && (
-            <div className="price-row discount-row">
-              <span>Discount</span>
-              <span>− ${savings.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="price-row">
-            <span>Subtotal</span>
-            <span>${(order.subtotal || 0).toFixed(2)}</span>
-          </div>
-          <div className="price-row">
-            <span>Delivery</span>
-            <span className="free-text">FREE</span>
-          </div>
-          <div className="price-row">
-            <span>Tax (8%)</span>
-            <span>${(order.tax || 0).toFixed(2)}</span>
-          </div>
-          <div className="price-row total-row">
-            <span>Total Paid</span>
-            <span>${(order.total || 0).toFixed(2)}</span>
-          </div>
-          {savings > 0 && (
-            <div className="savings-note">
-              🎉 You saved ${savings.toFixed(2)} on this order!
-            </div>
-          )}
-        </div>
-      </div>
+        {/* Items */}
+        <Box sx={{ px: 3, py: 2.5 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>
+            Items Ordered ({order.items?.length || 0})
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ "& th": { fontWeight: 700, color: "text.secondary", fontSize: "0.75rem", borderBottom: "2px solid", borderColor: "divider" } }}>
+                  <TableCell>Product</TableCell>
+                  <TableCell align="center">Qty</TableCell>
+                  <TableCell align="right">Unit Price</TableCell>
+                  <TableCell align="right">Subtotal</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {order.items?.map((item, idx) => (
+                  <TableRow key={idx} sx={{ "&:last-child td": { border: 0 } }}>
+                    <TableCell>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Box sx={{ width: 44, height: 44, bgcolor: "#fafafa", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem", border: "1px solid", borderColor: "divider", flexShrink: 0 }}>
+                          {item.image}
+                        </Box>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>{item.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">{item.brand}</Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.quantity}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2">${item.price?.toLocaleString()}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
 
-      {/* Delivery info */}
-      <div className="detail-card">
-        <h3 className="section-title">Delivery Information</h3>
-        <div className="delivery-info">
-          <div className="delivery-email">
-            📧 Confirmation sent to: <strong>{order.userEmail}</strong>
-          </div>
-          <div className="delivery-note">🏠 Delivered to your saved address</div>
-        </div>
-      </div>
-    </div>
+        <Divider />
+
+        {/* Price summary */}
+        <Box sx={{ px: 3, py: 2.5 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} smOffset={6}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>Price Breakdown</Typography>
+              {[
+                { label: "Total MRP",       value: `$${((order.subtotal || 0) + savings).toFixed(2)}`, color: "text.primary" },
+                { label: "Discount",        value: `− $${savings.toFixed(2)}`,                         color: "success.main" },
+                { label: "Subtotal",        value: `$${(order.subtotal || 0).toFixed(2)}`,             color: "text.primary" },
+                { label: "Tax",             value: `$${(order.tax || 0).toFixed(2)}`,                  color: "text.primary" },
+                { label: "Delivery",        value: "FREE",                                             color: "success.main" },
+              ].map(({ label, value, color }) => (
+                <Box key={label} sx={{ display: "flex", justifyContent: "space-between", mb: 0.75 }}>
+                  <Typography variant="body2" color="text.secondary">{label}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color }}>{value}</Typography>
+                </Box>
+              ))}
+              <Divider sx={{ my: 1 }} />
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total Paid</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>${(order.total || 0).toFixed(2)}</Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </Box>
+      </Paper>
+    </Box>
   );
 };
 
-// ─── Order Card (list item) ──────────────────────────────────────
+// ── Order Card (list view) ───────────────────────────────────
 const OrderCard = ({ order, onClick }) => {
-  const sc      = STATUS_COLORS[order.status?.toLowerCase()] || STATUS_COLORS.confirmed;
-  const step    = statusStep(order.status);
-  const preview = order.items?.slice(0, 3) || [];
-
+  const itemPreviews = order.items?.slice(0, 3).map((i) => i.image).join("  ") || "";
+  const extraCount   = (order.items?.length || 0) - 3;
   return (
-    <div className="order-card" onClick={onClick}>
-      {/* Header row */}
-      <div className="card-header">
-        <div className="card-header-left">
-          <div className="card-order-id">#{order.orderId}</div>
-          <div className="card-date">{fmtDate(order.createdAt)}</div>
-        </div>
-        <span className="status-badge" style={{ background: sc.bg, color: sc.text }}>
-          <span className="status-dot" style={{ background: sc.dot }} />
-          {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-        </span>
-      </div>
+    <Paper
+      elevation={0}
+      sx={{
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
+        overflow: "hidden",
+        mb: 2,
+        cursor: "pointer",
+        transition: "box-shadow .2s",
+        "&:hover": { boxShadow: "0 4px 16px rgba(0,0,0,.08)" },
+      }}
+      onClick={() => onClick(order)}
+    >
+      {/* Card top */}
+      <Box sx={{ px: 2.5, py: 1.5, bgcolor: "#fafafa", borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Typography variant="caption" sx={{ fontFamily: "monospace", fontWeight: 700, fontSize: "0.75rem", color: "text.secondary" }}>
+            #{order.orderId}
+          </Typography>
+          <StatusChip status={order.status} />
+        </Box>
+        <Typography variant="caption" color="text.secondary">{fmtDate(order.createdAt)}</Typography>
+      </Box>
 
-      {/* Mini progress bar */}
-      {order.status?.toLowerCase() !== "cancelled" && (
-        <div className="card-timeline-mini">
-          {STATUS_STEPS.map((s, i) => (
-            <React.Fragment key={s}>
-              <div
-                className="mini-dot"
-                style={{
-                  background: i <= step ? sc.dot : "#e0e0e0",
-                  transform: i === step ? "scale(1.3)" : "scale(1)",
-                }}
-              />
-              {i < STATUS_STEPS.length - 1 && (
-                <div
-                  className="mini-line"
-                  style={{ background: i < step ? sc.dot : "#e0e0e0" }}
-                />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
-
-      {/* Item previews */}
-      <div className="card-items-preview">
-        <div className="card-emojis">
-          {preview.map((item, i) => (
-            <span key={i} className="card-emoji">{item.image}</span>
-          ))}
-          {(order.items?.length || 0) > 3 && (
-            <span className="card-emoji-more">+{order.items.length - 3}</span>
-          )}
-        </div>
-        <div className="card-items-text">
-          {order.items?.length} item{order.items?.length !== 1 ? "s" : ""}
-          {order.items?.length > 0 && (
-            <span className="card-item-names">
-              {" · "}
-              {order.items.slice(0, 2).map((i) => i.name).join(", ")}
-              {order.items.length > 2 ? ` & ${order.items.length - 2} more` : ""}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="card-footer">
-        <div>
-          <span className="card-total-label">Order Total</span>
-          <span className="card-total-value">${(order.total || 0).toFixed(2)}</span>
-        </div>
-        <button className="card-details-btn" onClick={(e) => { e.stopPropagation(); onClick(); }}>
-          View Details →
-        </button>
-      </div>
-    </div>
+      {/* Card body */}
+      <Box sx={{ px: 2.5, py: 2, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{ display: "flex", gap: 0.75, fontSize: "1.75rem" }}>
+            {order.items?.slice(0, 3).map((item, i) => (
+              <Box key={i} sx={{ width: 52, height: 52, bgcolor: "#f5f5f5", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem", border: "1px solid", borderColor: "divider" }}>
+                {item.image}
+              </Box>
+            ))}
+            {extraCount > 0 && (
+              <Box sx={{ width: 52, height: 52, bgcolor: "#f5f5f5", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid", borderColor: "divider" }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>+{extraCount}</Typography>
+              </Box>
+            )}
+          </Box>
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {order.items?.length} item{order.items?.length !== 1 ? "s" : ""}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {order.items?.slice(0, 2).map((i) => i.name).join(", ")}{(order.items?.length || 0) > 2 ? "…" : ""}
+            </Typography>
+          </Box>
+        </Box>
+        <Box sx={{ textAlign: "right" }}>
+          <Typography variant="body2" sx={{ fontWeight: 800, fontSize: "1rem" }}>
+            ${(order.total || 0).toFixed(2)}
+          </Typography>
+          <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
+            View Details →
+          </Typography>
+        </Box>
+      </Box>
+    </Paper>
   );
 };
 
-// ─── Main Orders Component ────────────────────────────────────────
+// ── Main Orders component ────────────────────────────────────
 const Orders = () => {
   const navigate = useNavigate();
+  const [authUser,       setAuthUser]       = useState(undefined);
+  const [orders,         setOrders]         = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [selectedOrder,  setSelectedOrder]  = useState(null);
+  const [activeTab,      setActiveTab]      = useState(0);
 
-  const [authUser,      setAuthUser]      = useState(undefined);   // undefined = resolving
-  const [orders,        setOrders]        = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [filterStatus,  setFilterStatus]  = useState("All");
-
-  // Subscribe to auth + orders
   useEffect(() => {
-    let ordersUnsub = null;
-
+    let orderUnsub = null;
     const authUnsub = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
-      if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
-
-      if (!user) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-
+      if (orderUnsub) { orderUnsub(); orderUnsub = null; }
+      if (!user) { setOrders([]); setLoading(false); return; }
       setLoading(true);
       const q = query(collection(db, "orders"), where("userId", "==", user.uid));
-
-      ordersUnsub = onSnapshot(
-        q,
-        (snap) => {
-          const data = snap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => {
-              const ta = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime();
-              const tb = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime();
-              return tb - ta;
-            });
-          setOrders(data);
-          setLoading(false);
-        },
-        (err) => {
-          console.error("[ShopZone] Orders fetch error:", err.message);
-          setLoading(false);
-        }
-      );
+      orderUnsub = onSnapshot(q, (snap) => {
+        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        setOrders(docs);
+        setLoading(false);
+      }, (err) => { console.error("[ShopZone] Orders read failed:", err.message); setLoading(false); });
     });
-
-    return () => { authUnsub(); if (ordersUnsub) ordersUnsub(); };
+    return () => { authUnsub(); if (orderUnsub) orderUnsub(); };
   }, []);
 
-  const FILTER_TABS = ["All", "Confirmed", "Packed", "Shipped", "Delivered", "Delayed", "Cancelled"];
-  const filtered = filterStatus === "All"
-    ? orders
-    : orders.filter((o) => o.status?.toLowerCase() === filterStatus.toLowerCase());
+  // Sync selectedOrder when Firestore updates it
+  useEffect(() => {
+    if (!selectedOrder) return;
+    const updated = orders.find((o) => o.id === selectedOrder.id);
+    if (updated) setSelectedOrder(updated);
+  }, [orders]);
 
-  // ── Auth resolving (flash prevention) ───────────────────────
+  const filterKey = ALL_FILTERS[activeTab];
+  const filtered  = filterKey === "All" ? orders : orders.filter((o) => o.status?.toLowerCase() === filterKey);
+  const countOf   = (key) => key === "All" ? orders.length : orders.filter((o) => o.status?.toLowerCase() === key).length;
+
+  // ── Auth states ─────────────────────────────────────────
   if (authUser === undefined) {
     return (
-      <div className="orders-page-root">
-        <div className="orders-loading">
-          <div className="orders-spinner" />
-          Loading…
-        </div>
-      </div>
+      <ThemeProvider theme={theme}>
+        <Container maxWidth="md" sx={{ py: 6, textAlign: "center" }}>
+          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2, mb: 2 }} />
+          <Skeleton width="60%" sx={{ mx: "auto" }} />
+        </Container>
+      </ThemeProvider>
     );
   }
 
-  // ── Not logged in ────────────────────────────────────────────
   if (!authUser) {
     return (
-      <div className="orders-page-root">
-        <div className="orders-state-wrapper">
-          <div className="orders-empty-card">
-            <span className="empty-illustration">🔐</span>
-            <h2>Sign in to see your orders</h2>
-            <p>
-              Your complete order history is saved to your account.
-              <br />Sign in to track deliveries and view past purchases.
-            </p>
-            <button
-              className="ord-btn-primary"
-              onClick={() => navigate("/login", { state: { from: "/orders" } })}
-            >
-              Sign In / Register
-            </button>
-          </div>
-        </div>
-      </div>
+      <ThemeProvider theme={theme}>
+        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+          <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Sign in to view orders</Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>Your order history is tied to your account.</Typography>
+          <Button variant="contained" size="large" onClick={() => navigate("/login", { state: { from: "/orders" } })}>
+            Sign In
+          </Button>
+        </Container>
+      </ThemeProvider>
     );
   }
 
-  // ── Order detail ─────────────────────────────────────────────
-  if (selectedOrder) {
-    return (
-      <div className="orders-page-root">
-        <div className="orders-container">
-          <OrderDetail order={selectedOrder} onBack={() => setSelectedOrder(null)} />
-        </div>
-      </div>
-    );
-  }
-
-  // ── Loading orders ───────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="orders-page-root">
-        <div className="orders-loading">
-          <div className="orders-spinner" />
-          Loading your orders…
-        </div>
-      </div>
-    );
-  }
-
-  // ── Orders list ──────────────────────────────────────────────
   return (
-    <div className="orders-page-root">
-      <div className="orders-container">
-        {/* Page header */}
-        <div className="orders-page-header">
-          <div>
-            <h1 className="orders-title">My Orders</h1>
-            <p className="orders-subtitle">
-              {orders.length === 0
-                ? "No orders placed yet"
-                : `${orders.length} order${orders.length !== 1 ? "s" : ""} placed`}
-            </p>
-          </div>
-        </div>
-
-        {/* Zero orders → big empty state */}
-        {orders.length === 0 ? (
-          <div className="orders-state-wrapper" style={{ minHeight: "60vh" }}>
-            <div className="orders-empty-card">
-              <span className="empty-illustration">📦</span>
-              <h2>No orders yet</h2>
-              <p>
-                Looks like you haven't placed any orders yet.
-                <br />Browse our products and find something you love!
-              </p>
-              <button className="ord-btn-primary" onClick={() => navigate("/")}>
-                Start Shopping
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Filter tabs */}
-            <div className="orders-filter-tabs">
-              {FILTER_TABS.map((tab) => {
-                const count =
-                  tab === "All"
-                    ? orders.length
-                    : orders.filter(
-                        (o) => o.status?.toLowerCase() === tab.toLowerCase()
-                      ).length;
-                if (tab !== "All" && count === 0) return null;
-                return (
-                  <button
-                    key={tab}
-                    className={`filter-tab ${filterStatus === tab ? "active" : ""}`}
-                    onClick={() => setFilterStatus(tab)}
-                  >
-                    {tab}
-                    <span className="filter-count">{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Filtered empty */}
-            {filtered.length === 0 ? (
-              <div className="orders-empty-inline">
-                <p>
-                  No <strong>{filterStatus}</strong> orders found.
-                </p>
-                <button className="ord-btn-link" onClick={() => setFilterStatus("All")}>
-                  Show all orders
-                </button>
-              </div>
-            ) : (
-              <div className="orders-list">
-                {filtered.map((order) => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    onClick={() => setSelectedOrder(order)}
-                  />
-                ))}
-              </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
+          {/* Header */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>My Orders</Typography>
+            {!loading && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {orders.length} order{orders.length !== 1 ? "s" : ""} total
+              </Typography>
             )}
-          </>
-        )}
-      </div>
-    </div>
+          </Box>
+
+          {selectedOrder ? (
+            <OrderDetail order={selectedOrder} onBack={() => setSelectedOrder(null)} />
+          ) : (
+            <>
+              {/* Filter Tabs */}
+              <Paper elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, mb: 3, overflow: "hidden" }}>
+                <Tabs
+                  value={activeTab}
+                  onChange={(_, v) => setActiveTab(v)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  sx={{ bgcolor: "#fff", "& .MuiTabs-indicator": { bgcolor: "primary.main" } }}
+                >
+                  {ALL_FILTERS.map((f, i) => (
+                    <Tab
+                      key={f}
+                      label={
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                          <span style={{ textTransform: "capitalize" }}>{f}</span>
+                          <Box
+                            component="span"
+                            sx={{
+                              bgcolor: activeTab === i ? "primary.main" : "rgba(0,0,0,0.08)",
+                              color:   activeTab === i ? "#fff" : "text.secondary",
+                              px: 0.75, py: 0.1,
+                              borderRadius: 10,
+                              fontSize: "0.65rem",
+                              fontWeight: 700,
+                              lineHeight: 1.6,
+                              minWidth: 18,
+                              textAlign: "center",
+                            }}
+                          >
+                            {countOf(f)}
+                          </Box>
+                        </Box>
+                      }
+                    />
+                  ))}
+                </Tabs>
+              </Paper>
+
+              {/* Loading */}
+              {loading ? (
+                [0, 1, 2].map((i) => (
+                  <Paper key={i} elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, mb: 2, overflow: "hidden" }}>
+                    <Box sx={{ p: 2, bgcolor: "#fafafa", borderBottom: "1px solid", borderColor: "divider" }}>
+                      <Skeleton width={200} height={20} />
+                    </Box>
+                    <Box sx={{ p: 2, display: "flex", gap: 2 }}>
+                      {[0, 1, 2].map((j) => <Skeleton key={j} variant="rectangular" width={52} height={52} sx={{ borderRadius: 1.5 }} />)}
+                      <Box sx={{ flex: 1 }}>
+                        <Skeleton width="60%" height={18} />
+                        <Skeleton width="40%" height={14} sx={{ mt: 1 }} />
+                      </Box>
+                    </Box>
+                  </Paper>
+                ))
+              ) : filtered.length === 0 ? (
+                <Paper elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, py: 8, textAlign: "center" }}>
+                  <ShoppingBagOutlinedIcon sx={{ fontSize: "4rem", color: "text.disabled", mb: 2 }} />
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                    {orders.length === 0 ? "No orders yet" : `No ${filterKey} orders`}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    {orders.length === 0
+                      ? "Your ordered items will appear here."
+                      : "Try a different filter above."}
+                  </Typography>
+                  {orders.length === 0 && (
+                    <Button variant="contained" onClick={() => navigate("/")}>Start Shopping</Button>
+                  )}
+                </Paper>
+              ) : (
+                filtered.map((order) => (
+                  <OrderCard key={order.id} order={order} onClick={setSelectedOrder} />
+                ))
+              )}
+            </>
+          )}
+        </Container>
+      </Box>
+    </ThemeProvider>
   );
 };
 

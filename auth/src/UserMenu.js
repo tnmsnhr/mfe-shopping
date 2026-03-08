@@ -4,10 +4,26 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { authApi } from "./api";
-import "./UserMenu.css";
 
-/** Auto-create a Firestore user profile if one does not exist yet.
- *  Handles both email/password users and Google (or any OAuth) users. */
+import { ThemeProvider } from "@mui/material/styles";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Avatar from "@mui/material/Avatar";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Divider from "@mui/material/Divider";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import LogoutIcon from "@mui/icons-material/Logout";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import theme from "./theme";
+
 const ensureProfile = async (firebaseUser) => {
   const ref  = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(ref);
@@ -18,31 +34,22 @@ const ensureProfile = async (firebaseUser) => {
   const avatar   = rawName.slice(0, 2).toUpperCase();
 
   const profile = {
-    uid:         firebaseUser.uid,
-    email:       firebaseUser.email,
-    displayName: rawName,
-    photoURL:    firebaseUser.photoURL || null,
-    avatar,
-    role:        "user",
-    provider,
-    createdAt:   new Date().toISOString(),
-    updatedAt:   new Date().toISOString(),
+    uid: firebaseUser.uid, email: firebaseUser.email,
+    displayName: rawName, photoURL: firebaseUser.photoURL || null,
+    avatar, role: "user", provider,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
-
   await setDoc(ref, profile);
-  console.log("[ShopZone] ✅ Created Firestore profile for", firebaseUser.email);
   return profile;
 };
 
 const UserMenu = () => {
-  const navigate    = useNavigate();
-  const dropdownRef = useRef(null);
-
+  const navigate  = useNavigate();
   const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
-  const [open,    setOpen]    = useState(false);
+  const [anchor,  setAnchor]  = useState(null);
+  const open = Boolean(anchor);
 
-  // ── Subscribe to Firebase Auth state ───────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -56,17 +63,12 @@ const UserMenu = () => {
             avatar:      profile.avatar,
             role:        profile.role || "user",
           });
-        } catch (err) {
-          console.warn("[ShopZone] Profile load error:", err.message);
-          // Graceful fallback — still show the user as logged in
+        } catch {
           const rawName = firebaseUser.displayName || firebaseUser.email || "User";
           setUser({
-            uid:         firebaseUser.uid,
-            email:       firebaseUser.email,
-            displayName: rawName,
-            photoURL:    firebaseUser.photoURL || null,
-            avatar:      rawName.slice(0, 2).toUpperCase(),
-            role:        "user",
+            uid: firebaseUser.uid, email: firebaseUser.email,
+            displayName: rawName, photoURL: firebaseUser.photoURL || null,
+            avatar: rawName.slice(0, 2).toUpperCase(), role: "user",
           });
         }
       } else {
@@ -77,118 +79,178 @@ const UserMenu = () => {
     return unsub;
   }, []);
 
-  // ── Close dropdown on outside click ────────────────────────
-  useEffect(() => {
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // ── Close on Esc ───────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
-
+  const handleClose = () => setAnchor(null);
+  const goTo = (path) => { handleClose(); navigate(path); };
   const handleLogout = async () => {
-    setOpen(false);
+    handleClose();
     await authApi.logout();
     navigate("/");
   };
 
-  const goTo = (path) => { setOpen(false); navigate(path); };
-
   if (loading) return null;
 
-  /* ── Logged OUT ────────────────────────────────────────────── */
+  // ── Not logged in ─────────────────────────────────────────
   if (!user) {
     return (
-      <button className="user-menu-login-btn" onClick={() => navigate("/login")}>
-        <span className="login-icon">👤</span>
-        <span className="login-label">Login</span>
-      </button>
+      <ThemeProvider theme={theme}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<PersonOutlineIcon />}
+          onClick={() => navigate("/login")}
+          sx={{
+            color: "#fff",
+            borderColor: "rgba(255,255,255,0.6)",
+            fontWeight: 700,
+            "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
+          }}
+        >
+          Login
+        </Button>
+      </ThemeProvider>
     );
   }
 
-  /* ── Avatar: Google photo or initials ──────────────────────── */
-  const AvatarDisplay = ({ size = 36, className = "" }) =>
-    user.photoURL ? (
-      <img
-        src={user.photoURL}
-        alt={user.displayName}
-        referrerPolicy="no-referrer"
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover" }}
-        className={className}
-      />
-    ) : (
-      <div className={`user-avatar ${className}`}>{user.avatar}</div>
-    );
+  // ── Avatar helper ─────────────────────────────────────────
+  const avatarProps = user.photoURL
+    ? { src: user.photoURL, imgProps: { referrerPolicy: "no-referrer" } }
+    : { children: user.avatar };
 
-  /* ── Logged IN ─────────────────────────────────────────────── */
+  const firstName = user.displayName.split(" ")[0];
+
   return (
-    <div className="user-menu" ref={dropdownRef}>
-      <button
-        className={`user-menu-trigger ${open ? "active" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="true"
-        aria-expanded={open}
+    <ThemeProvider theme={theme}>
+      {/* Trigger */}
+      <Box
+        component="button"
+        onClick={(e) => setAnchor(e.currentTarget)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          borderRadius: 1,
+          px: 1,
+          py: 0.5,
+          "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
+          transition: "background .15s",
+        }}
       >
-        <AvatarDisplay size={34} />
-        <div className="user-trigger-info">
-          <span className="user-trigger-name">{user.displayName.split(" ")[0]}</span>
-          <span className="user-trigger-label">My Account</span>
-        </div>
-        <span className={`user-chevron ${open ? "up" : ""}`}>›</span>
-      </button>
+        <Avatar
+          {...avatarProps}
+          sx={{
+            width: 32,
+            height: 32,
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            bgcolor: "primary.main",
+          }}
+        />
+        <Box sx={{ textAlign: "left" }}>
+          <Typography
+            variant="body2"
+            sx={{ color: "#fff", fontWeight: 700, fontSize: "0.8rem", lineHeight: 1.1 }}
+          >
+            {firstName}
+          </Typography>
+          <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.65)", fontSize: "0.6rem", lineHeight: 1 }}>
+            My Account
+          </Typography>
+        </Box>
+        <KeyboardArrowDownIcon
+          sx={{
+            color: "rgba(255,255,255,0.7)",
+            fontSize: 18,
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform .2s",
+          }}
+        />
+      </Box>
 
-      {open && (
-        <div className="user-dropdown" role="menu">
-          <div className="dropdown-header">
-            <AvatarDisplay size={42} className="dropdown-avatar-img" />
-            <div>
-              <div className="dropdown-name">{user.displayName}</div>
-              <div className="dropdown-email">{user.email}</div>
-              {user.role === "admin" && (
-                <span className="dropdown-role-badge">Admin</span>
-              )}
-            </div>
-          </div>
+      {/* Dropdown Menu */}
+      <Menu
+        anchorEl={anchor}
+        open={open}
+        onClose={handleClose}
+        transformOrigin={{ horizontal: "right", vertical: "top" }}
+        anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+        PaperProps={{
+          elevation: 4,
+          sx: {
+            mt: 0.5,
+            minWidth: 240,
+            borderRadius: 2,
+            overflow: "visible",
+            border: "1px solid",
+            borderColor: "divider",
+            "& .MuiMenuItem-root": {
+              px: 2,
+              py: 1.25,
+              gap: 1.5,
+              "&:hover": { bgcolor: "rgba(255,63,108,0.06)" },
+            },
+          },
+        }}
+      >
+        {/* Profile header */}
+        <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Avatar
+            {...avatarProps}
+            sx={{
+              width: 44, height: 44,
+              fontSize: "0.95rem", fontWeight: 700,
+              bgcolor: "primary.main",
+            }}
+          />
+          <Box sx={{ overflow: "hidden" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              {user.displayName}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+              {user.email}
+            </Typography>
+            {user.role === "admin" && (
+              <Chip label="Admin" size="small" color="primary" sx={{ mt: 0.25, height: 18, fontSize: "0.6rem" }} />
+            )}
+          </Box>
+        </Box>
 
-          <div className="dropdown-divider" />
+        <Divider />
 
-          {user.role === "admin" && (
-            <>
-              <button className="dropdown-item admin-item" onClick={() => goTo("/admin")} role="menuitem">
-                <span>🛠️</span> Admin Portal
-              </button>
-              <div className="dropdown-divider" />
-            </>
-          )}
+        {/* Admin Portal — only for admins */}
+        {user.role === "admin" && (
+          <>
+            <MenuItem onClick={() => goTo("/admin")}>
+              <ListItemIcon><AdminPanelSettingsOutlinedIcon fontSize="small" color="primary" /></ListItemIcon>
+              <ListItemText
+                primary="Admin Portal"
+                primaryTypographyProps={{ fontWeight: 700, color: "primary.main", fontSize: "0.875rem" }}
+              />
+            </MenuItem>
+            <Divider />
+          </>
+        )}
 
-          <button className="dropdown-item" onClick={() => goTo("/orders")} role="menuitem">
-            <span>📦</span> My Orders
-          </button>
-          <button className="dropdown-item" onClick={() => goTo("/")} role="menuitem">
-            <span>♡</span> Wishlist
-          </button>
-          <button className="dropdown-item" onClick={() => goTo("/")} role="menuitem">
-            <span>🏠</span> Saved Addresses
-          </button>
-          <button className="dropdown-item" onClick={() => goTo("/")} role="menuitem">
-            <span>💳</span> Payments
-          </button>
+        <MenuItem onClick={() => goTo("/orders")}>
+          <ListItemIcon><ShoppingBagOutlinedIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary="My Orders" primaryTypographyProps={{ fontSize: "0.875rem" }} />
+        </MenuItem>
 
-          <div className="dropdown-divider" />
+        <MenuItem onClick={() => goTo("/")}>
+          <ListItemIcon><FavoriteBorderIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary="Wishlist" primaryTypographyProps={{ fontSize: "0.875rem" }} />
+        </MenuItem>
 
-          <button className="dropdown-item logout-item" onClick={handleLogout} role="menuitem">
-            <span>🚪</span> Sign Out
-          </button>
-        </div>
-      )}
-    </div>
+        <Divider />
+
+        <MenuItem onClick={handleLogout} sx={{ color: "error.main" }}>
+          <ListItemIcon><LogoutIcon fontSize="small" color="error" /></ListItemIcon>
+          <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 600 }} />
+        </MenuItem>
+      </Menu>
+    </ThemeProvider>
   );
 };
 

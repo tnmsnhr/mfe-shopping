@@ -75,9 +75,10 @@ Every UI section is an independent, deployable microfrontend that composes seaml
 | Layer | Technology |
 |---|---|
 | UI Framework | React 18 |
+| UI Component Library | **Material UI (MUI) v5** |
 | Module Federation | Webpack 5 |
 | Routing | React Router DOM v6 |
-| Styling | Plain CSS with CSS custom properties |
+| Styling | MUI `sx` props + shared `theme.js` (Emotion under the hood) |
 | Authentication | Firebase Authentication (Email/Password + Google) |
 | Database | Cloud Firestore (real-time NoSQL) |
 | Build tool | Webpack 5 + Babel |
@@ -178,18 +179,25 @@ cd mfe
 npm run install:all
 ```
 
+> If you see peer-dependency warnings, add `--legacy-peer-deps` (MUI + React 18 occasionally triggers this):
+> ```bash
+> for dir in host product-details cart navigation search auth orders admin; do
+>   (cd $dir && npm install --legacy-peer-deps)
+> done
+> ```
+
 <details>
 <summary>Or install each module individually</summary>
 
 ```bash
-cd host            && npm install && cd ..
-cd product-details && npm install && cd ..
-cd cart            && npm install && cd ..
-cd navigation      && npm install && cd ..
-cd search          && npm install && cd ..
-cd auth            && npm install && cd ..
-cd orders          && npm install && cd ..
-cd admin           && npm install && cd ..
+cd host            && npm install --legacy-peer-deps && cd ..
+cd product-details && npm install --legacy-peer-deps && cd ..
+cd cart            && npm install --legacy-peer-deps && cd ..
+cd navigation      && npm install --legacy-peer-deps && cd ..
+cd search          && npm install --legacy-peer-deps && cd ..
+cd auth            && npm install --legacy-peer-deps && cd ..
+cd orders          && npm install --legacy-peer-deps && cd ..
+cd admin           && npm install --legacy-peer-deps && cd ..
 ```
 </details>
 
@@ -395,7 +403,8 @@ The following accounts are **auto-created in Firebase** on first login (no manua
 mfe/
 ├── host/                    # Shell app — home page + routing
 │   └── src/
-│       ├── App.js           # Routes + Home + Wishlist
+│       ├── App.js           # Routes + Home + Wishlist (MUI Grid/Card)
+│       ├── theme.js         # ★ Shared MUI theme (pink primary, Inter font)
 │       ├── api.js           # Firestore product/category reads
 │       ├── firebase.js      # Firebase initialisation
 │       ├── seedData.js      # 32 products + 6 categories (seed data)
@@ -403,41 +412,48 @@ mfe/
 │
 ├── navigation/              # Top nav bar MFE  (port 3004)
 │   └── src/
-│       ├── Navigation.js    # Navbar + cart badge (Firestore) + lazy Search
+│       ├── Navigation.js    # MUI AppBar + cart badge (Firestore) + lazy Search
+│       ├── theme.js         # Copy of shared MUI theme
 │       └── firebase.js
 │
 ├── search/                  # Myntra-style search MFE  (port 3005)
 │   └── src/
-│       ├── Search.js        # Live search with keyboard navigation
+│       ├── Search.js        # MUI-based live search with keyboard navigation
+│       ├── theme.js         # Copy of shared MUI theme
 │       ├── api.js           # Firestore products read
 │       └── firebase.js
 │
 ├── product-details/         # Product detail page MFE  (port 3001)
 │   └── src/
-│       ├── ProductDetails.js # Add to cart + wishlist (Firestore)
+│       ├── ProductDetails.js # MUI layout — add to cart + wishlist (Firestore)
+│       ├── theme.js          # Copy of shared MUI theme
 │       ├── api.js            # Firestore product read
 │       └── firebase.js
 │
 ├── cart/                    # Shopping cart MFE  (port 3002)
 │   └── src/
-│       ├── Cart.js          # Real-time cart + checkout → creates /orders doc
+│       ├── Cart.js          # MUI Table + Stepper — real-time cart + checkout
+│       ├── theme.js         # Copy of shared MUI theme
 │       └── firebase.js
 │
 ├── auth/                    # Authentication MFE  (port 3006)
 │   └── src/
-│       ├── Login.js         # Email/Password + Google Sign-In
-│       ├── UserMenu.js      # Avatar dropdown + admin link + logout
+│       ├── Login.js         # MUI TextField/Button — Email/Password + Google
+│       ├── UserMenu.js      # MUI Menu/Avatar — dropdown + admin link + logout
+│       ├── theme.js         # Copy of shared MUI theme
 │       ├── api.js           # Firebase Auth wrapper + demo user provisioning
 │       └── firebase.js
 │
 ├── orders/                  # Order history MFE  (port 3007)
 │   └── src/
-│       ├── Orders.js        # Order list + detail view (real-time Firestore)
+│       ├── Orders.js        # MUI Stepper/Cards — order list + detail view
+│       ├── theme.js         # Copy of shared MUI theme
 │       └── firebase.js
 │
 ├── admin/                   # Admin portal MFE  (port 3008)
 │   └── src/
-│       ├── Admin.js         # Order management — view all orders, change status
+│       ├── Admin.js         # MUI Table/Dialog/Snackbar — order management
+│       ├── theme.js         # Copy of shared MUI theme
 │       └── firebase.js
 │
 ├── start-all.sh             # One-command launcher (all 8 MFEs)
@@ -456,7 +472,7 @@ import("./bootstrap");
 The async `import()` creates a chunk boundary that lets Webpack initialise the **shared module scope** (React, React Router, Firebase) before any component runs. Without this you get `Shared module is not available for eager consumption`.
 
 ### Shared modules
-React, ReactDOM, React Router, and Firebase are declared `singleton: true` so all MFEs share **one instance** — avoiding duplicate initialisation and the "multiple React" problem.
+React, ReactDOM, React Router, Firebase, **`@mui/material`**, **`@emotion/react`**, and **`@emotion/styled`** are all declared `singleton: true` so every MFE shares **one instance** — avoiding duplicate React/Emotion contexts and the "multiple React" problem that would break MUI's `ThemeProvider`.
 
 ### Nested remotes
 Navigation (a remote itself) loads Search as its own nested remote — demonstrating that Module Federation remotes can consume other remotes.
@@ -466,6 +482,9 @@ On the very first app load, `seedFirestore.js` checks if `/products` is empty an
 
 ### Category-aware routing
 Clicking a category breadcrumb in ProductDetails navigates to `/?category=Audio`. The Home component reads `useSearchParams()` and pre-selects the right tab.
+
+### Shared MUI theme
+A single `src/theme.js` file (Myntra-pink `#ff3f6c` primary, Inter font, MUI component overrides) is copied into every MFE. Combined with the `singleton` shared config, this guarantees a consistent look across all microfrontends even when they are consumed by the host.
 
 ### Real-time updates
 Cart badge, cart page, and order history all use Firestore `onSnapshot` listeners. When an admin changes an order status, the customer's Orders page updates **instantly** — no polling or page refresh needed.
@@ -491,6 +510,8 @@ The `role` field in `/users/{uid}` controls admin access. The Admin MFE checks t
 | Remote chunks loading from wrong origin | Set an absolute `publicPath` (e.g., `http://localhost:3001/`) in the remote's webpack config |
 | Page reloads on sub-routes return 404 | Add `historyApiFallback: { index: "/" }` to `devServer` in webpack config |
 | Module not found at startup | Start remotes **before** the host. Wait for `compiled successfully` in each terminal. |
+| MUI styles not applying / theme mismatch | Ensure `@mui/material`, `@emotion/react`, and `@emotion/styled` are all `singleton: true` in **every** `webpack.config.js` shared block |
+| MUI icons missing | Run `npm install @mui/icons-material` inside the affected MFE directory |
 
 ---
 

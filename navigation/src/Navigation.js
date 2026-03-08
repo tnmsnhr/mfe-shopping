@@ -1,104 +1,176 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import "./Navigation.css";
+
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import Badge from "@mui/material/Badge";
+import Tooltip from "@mui/material/Tooltip";
+import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
+import theme from "./theme";
 
 // Lazy-load nested remotes
 const Search   = React.lazy(() => import("searchRemote/Search"));
 const UserMenu = React.lazy(() => import("authRemote/UserMenu"));
 
 const SearchFallback = () => (
-  <div className="search-fallback">
-    <span className="search-fallback-icon">🔍</span>
-    <input type="text" placeholder="Search for products, brands and more" disabled />
-  </div>
+  <Box
+    sx={{
+      flex: 1,
+      maxWidth: 540,
+      mx: 2,
+      bgcolor: "rgba(255,255,255,0.15)",
+      borderRadius: 1,
+      height: 40,
+      display: "flex",
+      alignItems: "center",
+      px: 2,
+    }}
+  >
+    <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.7)", fontSize: "0.875rem" }}>
+      🔍&nbsp; Search for products, brands and more
+    </Typography>
+  </Box>
 );
 
 const Navigation = () => {
   const [cartCount, setCartCount] = useState(0);
-  const [scrolled,  setScrolled]  = useState(false);
+  const navigate = useNavigate();
 
-  // ── Real-time cart count from Firestore ─────────────────────
+  // ── Real-time cart count ──────────────────────────────────
   useEffect(() => {
     let cartUnsub = null;
-
     const authUnsub = onAuthStateChanged(auth, (user) => {
       if (cartUnsub) { cartUnsub(); cartUnsub = null; }
-
       if (!user) { setCartCount(0); return; }
-
       cartUnsub = onSnapshot(
         collection(db, "carts", user.uid, "items"),
         (snap) => {
-          const total = snap.docs.reduce((sum, d) => sum + (d.data().quantity || 0), 0);
+          const total = snap.docs.reduce((s, d) => s + (d.data().quantity || 0), 0);
           setCartCount(total);
         },
-        (err) => {
-          console.error("[ShopZone] Firestore cart count failed — check Firestore Rules:", err.message);
-        }
+        (err) => console.error("[ShopZone] Cart count error:", err.message)
       );
     });
-
     return () => { authUnsub(); if (cartUnsub) cartUnsub(); };
   }, []);
 
-  // ── Scroll shadow ───────────────────────────────────────────
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
-    <header className={`navbar ${scrolled ? "scrolled" : ""}`}>
-      <div className="nav-inner">
-        {/* Logo */}
-        <Link to="/" className="nav-logo">
-          <span className="logo-icon">🛍️</span>
-          <span className="logo-text">ShopZone</span>
-        </Link>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AppBar
+        position="sticky"
+        sx={{ bgcolor: "secondary.main", top: 0, zIndex: 1100 }}
+      >
+        <Toolbar sx={{ gap: 1, minHeight: { xs: 60, sm: 64 }, px: { xs: 2, md: 3 } }}>
+          {/* ── Logo ── */}
+          <Box
+            component={Link}
+            to="/"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.75,
+              textDecoration: "none",
+              mr: 1,
+              flexShrink: 0,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: "1.5rem",
+                lineHeight: 1,
+              }}
+            >
+              🛍️
+            </Typography>
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: "1.05rem",
+                  letterSpacing: "0.5px",
+                  lineHeight: 1.1,
+                }}
+              >
+                ShopZone
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: "rgba(255,255,255,0.65)", fontSize: "0.6rem", lineHeight: 1 }}
+              >
+                India's Fashion Destination
+              </Typography>
+            </Box>
+          </Box>
 
-        {/* Search MFE */}
-        <React.Suspense fallback={<SearchFallback />}>
-          <Search />
-        </React.Suspense>
+          {/* ── Search MFE ── */}
+          <Box sx={{ flex: 1, maxWidth: 560, mx: { xs: 0.5, md: 2 } }}>
+            <React.Suspense fallback={<SearchFallback />}>
+              <Search />
+            </React.Suspense>
+          </Box>
 
-        {/* Nav Actions */}
-        <nav className="nav-actions">
-          <Link to="/" className="nav-item">
-            <span className="nav-item-icon">🏠</span>
-            <span className="nav-item-label">Home</span>
-          </Link>
+          {/* ── Actions ── */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 1 }, ml: "auto", flexShrink: 0 }}>
+            {/* Cart */}
+            <Tooltip title="Shopping Bag">
+              <IconButton
+                component={Link}
+                to="/cart"
+                sx={{
+                  color: "#fff",
+                  flexDirection: "column",
+                  gap: 0,
+                  borderRadius: 1,
+                  px: 1,
+                  py: 0.5,
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
+                }}
+              >
+                <Badge
+                  badgeContent={cartCount}
+                  max={99}
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      bgcolor: "primary.main",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: "0.65rem",
+                    },
+                  }}
+                >
+                  <ShoppingBagOutlinedIcon sx={{ fontSize: 22 }} />
+                </Badge>
+                <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.65rem", lineHeight: 1, mt: 0.25 }}>
+                  Bag
+                </Typography>
+              </IconButton>
+            </Tooltip>
 
-          <Link to="/" className="nav-item">
-            <span className="nav-item-icon">♡</span>
-            <span className="nav-item-label">Wishlist</span>
-          </Link>
-
-          <Link to="/cart" className="nav-item cart-nav-item">
-            <span className="nav-item-icon">
-              🛒
-              {cartCount > 0 && (
-                <span className="cart-badge">{cartCount > 99 ? "99+" : cartCount}</span>
-              )}
-            </span>
-            <span className="nav-item-label">Bag</span>
-          </Link>
-
-          {/* UserMenu from Auth MFE — shows Login button or avatar dropdown */}
-          <React.Suspense fallback={
-            <div className="nav-item">
-              <span className="nav-item-icon">👤</span>
-              <span className="nav-item-label">Profile</span>
-            </div>
-          }>
-            <UserMenu />
-          </React.Suspense>
-        </nav>
-      </div>
-    </header>
+            {/* User Menu from Auth MFE */}
+            <React.Suspense
+              fallback={
+                <Box sx={{ px: 1 }}>
+                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>Loading…</Typography>
+                </Box>
+              }
+            >
+              <UserMenu />
+            </React.Suspense>
+          </Box>
+        </Toolbar>
+      </AppBar>
+    </ThemeProvider>
   );
 };
 

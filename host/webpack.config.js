@@ -73,6 +73,9 @@ module.exports = {
           eager: true,
         },
         firebase: { singleton: true, requiredVersion: "^10.7.0", eager: true },
+        "@mui/material":    { singleton: true, requiredVersion: "^5.15.6",  eager: true },
+        "@emotion/react":   { singleton: true, requiredVersion: "^11.11.4", eager: true },
+        "@emotion/styled":  { singleton: true, requiredVersion: "^11.11.0", eager: true },
       },
     }),
     new HtmlWebpackPlugin({

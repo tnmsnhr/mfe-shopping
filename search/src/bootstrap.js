@@ -1,53 +1,65 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, useNavigate } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Paper from "@mui/material/Paper";
 import Search from "./Search";
-import "./Search.css";
+import theme from "./theme";
 
-// Standalone shell — gives Search a router context + a fake navigate
-// that shows where it would navigate in the full app.
-const StandaloneApp = () => {
-  return (
-    <div className="search-standalone">
+// Standalone shell — gives Search a router context + a nice MUI-styled wrapper
+const StandaloneApp = () => (
+  <ThemeProvider theme={theme}>
+    <CssBaseline />
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", display: "flex", flexDirection: "column" }}>
       {/* Mini navbar */}
-      <header className="standalone-header">
-        <span className="standalone-logo">🛍️ ShopZone</span>
+      <Paper
+        elevation={0}
+        sx={{
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          px: 3,
+          height: 60,
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 800, color: "primary.main", whiteSpace: "nowrap" }}>
+          🛍️ ShopZone
+        </Typography>
         <Search />
-      </header>
+      </Paper>
 
       {/* Body */}
-      <main className="standalone-body">
-        <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#282c3f" }}>
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", pt: 8, px: 3, gap: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>
           Search Module — Standalone Mode
-        </h2>
-        <p className="standalone-tagline">
-          Running on <strong>http://localhost:3005</strong> &nbsp;·&nbsp;
-          Type in the search box above to see results
-        </p>
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Running on <strong>http://localhost:3005</strong> · Type in the search box above to see results
+        </Typography>
 
-        <div className="standalone-search-area">
-          <div
-            style={{
-              background: "white",
-              border: "1px solid #eaeaec",
-              borderRadius: 8,
-              padding: "2rem",
-              textAlign: "center",
-              color: "#696b79",
-              fontSize: "0.9rem",
-            }}
-          >
-            <p style={{ marginBottom: "0.5rem" }}>🔍 &nbsp;<strong>How to test:</strong></p>
-            <p>Type a product name, brand, or category (e.g. <em>"Sony"</em>, <em>"Gaming"</em>, <em>"Watch"</em>).</p>
-            <p style={{ marginTop: "0.75rem" }}>
-              Clicking a result navigates to <code>/product/:id</code> (handled by the host router in production).
-            </p>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-};
+        <Paper
+          elevation={0}
+          sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 3, mt: 2, maxWidth: 540, textAlign: "center" }}
+        >
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            🔍 <strong>How to test:</strong>
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Type a product name, brand, or category (e.g. <em>"Sony"</em>, <em>"Gaming"</em>, <em>"Watch"</em>).
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Clicking a result navigates to <code>/product/:id</code> (handled by the host router in production).
+          </Typography>
+        </Paper>
+      </Box>
+    </Box>
+  </ThemeProvider>
+);
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
