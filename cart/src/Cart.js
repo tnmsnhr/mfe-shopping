@@ -7,8 +7,6 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -29,8 +27,6 @@ import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import theme from "./theme";
-
 const cartCol    = (uid)     => collection(db, "carts", uid, "items");
 const cartDocRef = (uid, id) => doc(db, "carts", uid, "items", id);
 const cartParent = (uid)     => doc(db, "carts", uid);
@@ -133,97 +129,86 @@ const Cart = () => {
   // ── Auth resolving ─────────────────────────────────────────
   if (authUser === undefined) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="lg" sx={{ py: 6, textAlign: "center" }}>
-          <CircularProgress color="primary" />
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="lg" sx={{ py: 6, textAlign: "center" }}>
+        <CircularProgress color="primary" />
+      </Container>
     );
   }
 
   // ── Not logged in ──────────────────────────────────────────
   if (!authUser) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
-          <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Please sign in</Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>
-            Your cart items are saved to your account.
-          </Typography>
-          <Button variant="contained" size="large" onClick={() => navigate("/login", { state: { from: "/cart" } })}>
-            Sign In
-          </Button>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+        <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Please sign in</Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          Your cart items are saved to your account.
+        </Typography>
+        <Button variant="contained" size="large" onClick={() => navigate("/login", { state: { from: "/cart" } })}>
+          Sign In
+        </Button>
+      </Container>
     );
   }
 
   // ── Loading ────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="lg" sx={{ py: 4 }}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={8}>
-              {[0, 1, 2].map((i) => (
-                <Paper key={i} elevation={0} sx={{ p: 2, mb: 2, border: "1px solid", borderColor: "divider", borderRadius: 2, display: "flex", gap: 2 }}>
-                  <Skeleton variant="rectangular" width={80} height={80} sx={{ borderRadius: 2, flexShrink: 0 }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Skeleton width="60%" height={18} />
-                    <Skeleton width="40%" height={14} sx={{ mt: 0.75 }} />
-                    <Skeleton width="30%" height={20} sx={{ mt: 1 }} />
-                  </Box>
-                </Paper>
-              ))}
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
-            </Grid>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            {[0, 1, 2].map((i) => (
+              <Paper key={i} elevation={0} sx={{ p: 2, mb: 2, border: "1px solid", borderColor: "divider", borderRadius: 2, display: "flex", gap: 2 }}>
+                <Skeleton variant="rectangular" width={80} height={80} sx={{ borderRadius: 2, flexShrink: 0 }} />
+                <Box sx={{ flex: 1 }}>
+                  <Skeleton width="60%" height={18} />
+                  <Skeleton width="40%" height={14} sx={{ mt: 0.75 }} />
+                  <Skeleton width="30%" height={20} sx={{ mt: 1 }} />
+                </Box>
+              </Paper>
+            ))}
           </Grid>
-        </Container>
-      </ThemeProvider>
+          <Grid item xs={12} md={4}>
+            <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
+          </Grid>
+        </Grid>
+      </Container>
     );
   }
 
   // ── Order placed ───────────────────────────────────────────
   if (orderPlaced) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
-          <CheckCircleOutlineIcon sx={{ fontSize: "5rem", color: "success.main", mb: 2 }} />
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>Order Placed! 🎉</Typography>
-          <Typography color="text.secondary" sx={{ mb: 0.5 }}>Your order has been confirmed.</Typography>
-          <Typography variant="body2" sx={{ fontFamily: "monospace", fontWeight: 700, mb: 3, color: "text.primary" }}>
-            {orderPlaced}
-          </Typography>
-          <Box sx={{ display: "flex", gap: 2, justifyContent: "center" }}>
-            <Button variant="contained" onClick={() => navigate("/orders")}>View Orders</Button>
-            <Button variant="outlined" onClick={() => { setOrderPlaced(null); navigate("/"); }}>Continue Shopping</Button>
-          </Box>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+        <CheckCircleOutlineIcon sx={{ fontSize: "5rem", color: "success.main", mb: 2 }} />
+        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>Order Placed! 🎉</Typography>
+        <Typography color="text.secondary" sx={{ mb: 0.5 }}>Your order has been confirmed.</Typography>
+        <Typography variant="body2" sx={{ fontFamily: "monospace", fontWeight: 700, mb: 3, color: "text.primary" }}>
+          {orderPlaced}
+        </Typography>
+        <Box sx={{ display: "flex", gap: 2, justifyContent: "center" }}>
+          <Button variant="contained" onClick={() => navigate("/orders")}>View Orders</Button>
+          <Button variant="outlined" onClick={() => { setOrderPlaced(null); navigate("/"); }}>Continue Shopping</Button>
+        </Box>
+      </Container>
     );
   }
 
   // ── Empty cart ─────────────────────────────────────────────
   if (cartItems.length === 0) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
-          <ShoppingBagOutlinedIcon sx={{ fontSize: "5rem", color: "text.disabled", mb: 2 }} />
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Your bag is empty</Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>Add some products to get started!</Typography>
-          <Button variant="contained" size="large" onClick={() => navigate("/")}>Continue Shopping</Button>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+        <ShoppingBagOutlinedIcon sx={{ fontSize: "5rem", color: "text.disabled", mb: 2 }} />
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Your bag is empty</Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>Add some products to get started!</Typography>
+        <Button variant="contained" size="large" onClick={() => navigate("/")}>Continue Shopping</Button>
+      </Container>
     );
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
+    <>
+    <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
         <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
@@ -426,7 +411,7 @@ const Cart = () => {
       >
         <Alert severity={toast.severity} variant="filled" sx={{ borderRadius: 2 }}>{toast.msg}</Alert>
       </Snackbar>
-    </ThemeProvider>
+    </>
   );
 };
 

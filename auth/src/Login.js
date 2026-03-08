@@ -4,8 +4,6 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
 import { authApi } from "./api";
 
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
@@ -22,8 +20,6 @@ import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import theme from "./theme";
-
 const DEMO_CREDENTIALS = [
   { username: "john.doe",     password: "pass123",   displayName: "John Doe",     isAdmin: true  },
   { username: "jane.smith",   password: "pass123",   displayName: "Jane Smith",   isAdmin: false },
@@ -95,11 +91,9 @@ const Login = () => {
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box
-        sx={{
-          minHeight: "100vh",
+    <Box
+      sx={{
+        minHeight: "100vh",
           display: "flex",
           bgcolor: "background.default",
         }}
@@ -294,7 +288,6 @@ const Login = () => {
           </Paper>
         </Box>
       </Box>
-    </ThemeProvider>
   );
 };
 

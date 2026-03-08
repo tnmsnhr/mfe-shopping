@@ -5,7 +5,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { authApi } from "./api";
 
-import { ThemeProvider } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Avatar from "@mui/material/Avatar";
@@ -22,8 +21,6 @@ import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import theme from "./theme";
-
 const ensureProfile = async (firebaseUser) => {
   const ref  = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(ref);
@@ -92,22 +89,20 @@ const UserMenu = () => {
   // ── Not logged in ─────────────────────────────────────────
   if (!user) {
     return (
-      <ThemeProvider theme={theme}>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<PersonOutlineIcon />}
-          onClick={() => navigate("/login")}
-          sx={{
-            color: "#fff",
-            borderColor: "rgba(255,255,255,0.6)",
-            fontWeight: 700,
-            "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
-          }}
-        >
-          Login
-        </Button>
-      </ThemeProvider>
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<PersonOutlineIcon />}
+        onClick={() => navigate("/login")}
+        sx={{
+          color: "#fff",
+          borderColor: "rgba(255,255,255,0.6)",
+          fontWeight: 700,
+          "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
+        }}
+      >
+        Login
+      </Button>
     );
   }
 
@@ -119,7 +114,7 @@ const UserMenu = () => {
   const firstName = user.displayName.split(" ")[0];
 
   return (
-    <ThemeProvider theme={theme}>
+    <>
       {/* Trigger */}
       <Box
         component="button"
@@ -250,7 +245,7 @@ const UserMenu = () => {
           <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 600 }} />
         </MenuItem>
       </Menu>
-    </ThemeProvider>
+    </>
   );
 };
 

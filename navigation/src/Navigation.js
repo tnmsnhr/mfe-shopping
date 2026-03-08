@@ -4,8 +4,6 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Box from "@mui/material/Box";
@@ -14,8 +12,6 @@ import IconButton from "@mui/material/IconButton";
 import Badge from "@mui/material/Badge";
 import Tooltip from "@mui/material/Tooltip";
 import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
-import theme from "./theme";
-
 // Lazy-load nested remotes
 const Search   = React.lazy(() => import("searchRemote/Search"));
 const UserMenu = React.lazy(() => import("authRemote/UserMenu"));
@@ -63,9 +59,7 @@ const Navigation = () => {
   }, []);
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <AppBar
+    <AppBar
         position="sticky"
         sx={{ bgcolor: "secondary.main", top: 0, zIndex: 1100 }}
       >
@@ -170,7 +164,6 @@ const Navigation = () => {
           </Box>
         </Toolbar>
       </AppBar>
-    </ThemeProvider>
   );
 };
 

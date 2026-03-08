@@ -4,8 +4,6 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -28,8 +26,6 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
-import theme from "./theme";
-
 // ── Status config ────────────────────────────────────────────
 const TIMELINE_STEPS = ["Confirmed", "Packed", "Shipped", "Delivered"];
 
@@ -339,34 +335,28 @@ const Orders = () => {
   // ── Auth states ─────────────────────────────────────────
   if (authUser === undefined) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="md" sx={{ py: 6, textAlign: "center" }}>
-          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2, mb: 2 }} />
-          <Skeleton width="60%" sx={{ mx: "auto" }} />
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="md" sx={{ py: 6, textAlign: "center" }}>
+        <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2, mb: 2 }} />
+        <Skeleton width="60%" sx={{ mx: "auto" }} />
+      </Container>
     );
   }
 
   if (!authUser) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
-          <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Sign in to view orders</Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>Your order history is tied to your account.</Typography>
-          <Button variant="contained" size="large" onClick={() => navigate("/login", { state: { from: "/orders" } })}>
-            Sign In
-          </Button>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+        <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Sign in to view orders</Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>Your order history is tied to your account.</Typography>
+        <Button variant="contained" size="large" onClick={() => navigate("/login", { state: { from: "/orders" } })}>
+          Sign In
+        </Button>
+      </Container>
     );
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
+    <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
         <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
           {/* Header */}
           <Box sx={{ mb: 3 }}>
@@ -460,7 +450,6 @@ const Orders = () => {
           )}
         </Container>
       </Box>
-    </ThemeProvider>
   );
 };
 

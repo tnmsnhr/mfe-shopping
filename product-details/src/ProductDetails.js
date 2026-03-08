@@ -8,8 +8,6 @@ import {
 import { auth, db } from "./firebase";
 import { api } from "./api";
 
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -34,8 +32,6 @@ import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined
 import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
 import CachedOutlinedIcon from "@mui/icons-material/CachedOutlined";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
-import theme from "./theme";
-
 const getMrp      = (price) => Math.round(price * 1.4);
 const getDiscount = (price) => Math.round((1 - price / getMrp(price)) * 100);
 
@@ -174,35 +170,31 @@ const ProductDetails = ({ productId }) => {
   // ── Loading skeleton ──────────────────────────────────────
   if (loading) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="lg" sx={{ py: 4 }}>
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={5}>
-              <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 3 }} />
-              <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
-                {[0, 1, 2, 3].map((i) => <Skeleton key={i} variant="rectangular" width={72} height={72} sx={{ borderRadius: 2 }} />)}
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={7}>
-              {[80, 60, 40, 90, 50, 70, 55].map((w, i) => (
-                <Skeleton key={i} width={`${w}%`} height={i === 0 ? 28 : 18} sx={{ mb: 1.5 }} />
-              ))}
-            </Grid>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={5}>
+            <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 3 }} />
+            <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+              {[0, 1, 2, 3].map((i) => <Skeleton key={i} variant="rectangular" width={72} height={72} sx={{ borderRadius: 2 }} />)}
+            </Box>
           </Grid>
-        </Container>
-      </ThemeProvider>
+          <Grid item xs={12} md={7}>
+            {[80, 60, 40, 90, 50, 70, 55].map((w, i) => (
+              <Skeleton key={i} width={`${w}%`} height={i === 0 ? 28 : 18} sx={{ mb: 1.5 }} />
+            ))}
+          </Grid>
+        </Grid>
+      </Container>
     );
   }
 
   if (error || !product) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 8, textAlign: "center" }}>
-          <Typography sx={{ fontSize: "4rem", mb: 2 }}>😕</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>{error || "Product not found"}</Typography>
-          <Button variant="contained" onClick={() => navigate("/")}>Back to Home</Button>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 8, textAlign: "center" }}>
+        <Typography sx={{ fontSize: "4rem", mb: 2 }}>😕</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>{error || "Product not found"}</Typography>
+        <Button variant="contained" onClick={() => navigate("/")}>Back to Home</Button>
+      </Container>
     );
   }
 
@@ -210,9 +202,8 @@ const ProductDetails = ({ productId }) => {
   const discount = getDiscount(product.price);
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
+    <>
+    <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
         <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
           {/* Breadcrumbs */}
           <Breadcrumbs
@@ -528,7 +519,7 @@ const ProductDetails = ({ productId }) => {
           {toast.msg}
         </Alert>
       </Snackbar>
-    </ThemeProvider>
+    </>
   );
 };
 

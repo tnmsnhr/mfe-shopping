@@ -7,8 +7,6 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -48,8 +46,6 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import theme from "./theme";
-
 // ── Config ───────────────────────────────────────────────────
 const ALL_STATUSES = ["confirmed", "packed", "shipped", "delivered", "delayed", "cancelled"];
 const FILTER_TABS  = ["All", ...ALL_STATUSES.map((s) => s.charAt(0).toUpperCase() + s.slice(1))];
@@ -195,43 +191,36 @@ const Admin = () => {
   // ── Guards ─────────────────────────────────────────────────
   if (authUser === undefined || loading) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="lg" sx={{ py: 6, textAlign: "center" }}>
-          <CircularProgress color="primary" />
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="lg" sx={{ py: 6, textAlign: "center" }}>
+        <CircularProgress color="primary" />
+      </Container>
     );
   }
 
   if (!authUser) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
-          <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Authentication required</Typography>
-          <Button variant="contained" size="large" onClick={() => navigate("/login")}>Sign In</Button>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+        <Typography sx={{ fontSize: "4rem", mb: 2 }}>🔐</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Authentication required</Typography>
+        <Button variant="contained" size="large" onClick={() => navigate("/login")}>Sign In</Button>
+      </Container>
     );
   }
 
   if (!isAdmin) {
     return (
-      <ThemeProvider theme={theme}>
-        <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
-          <Typography sx={{ fontSize: "4rem", mb: 2 }}>🚫</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Access Denied</Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>This portal is restricted to administrators.</Typography>
-          <Button variant="contained" onClick={() => navigate("/")}>Go Home</Button>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="sm" sx={{ py: 10, textAlign: "center" }}>
+        <Typography sx={{ fontSize: "4rem", mb: 2 }}>🚫</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Access Denied</Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>This portal is restricted to administrators.</Typography>
+        <Button variant="contained" onClick={() => navigate("/")}>Go Home</Button>
+      </Container>
     );
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
+    <>
+    <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
         {/* Admin top bar */}
         <Box sx={{ bgcolor: "secondary.main", py: 2, px: 3 }}>
           <Container maxWidth="lg">
@@ -491,7 +480,7 @@ const Admin = () => {
       >
         <Alert severity={toast.severity} variant="filled" sx={{ borderRadius: 2 }}>{toast.msg}</Alert>
       </Snackbar>
-    </ThemeProvider>
+    </>
   );
 };
 

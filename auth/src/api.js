@@ -10,7 +10,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 // ── Demo user registry ─────────────────────────────────────────
 // Used to auto-create accounts on first sign-in so testers don't
@@ -34,39 +34,40 @@ const toEmail = (username) =>
 /**
  * Create or merge a /users/{uid} document.
  * Called after every sign-in so the profile always exists in Firestore.
- * Uses setDoc with merge:true so subsequent logins update stale fields.
+ *
+ * IMPORTANT: The `role` field is NEVER downgraded on subsequent logins.
+ * If a role already exists in Firestore (e.g. "admin" set via console), it
+ * is preserved. `extra.role` is only used when creating a brand-new document.
  */
 const saveProfile = async (firebaseUser, extra = {}) => {
   try {
+    const ref      = doc(db, "users", firebaseUser.uid);
     const provider = firebaseUser.providerData?.[0]?.providerId || "password";
     const rawName  = extra.displayName || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User";
     const avatar   = extra.avatar || rawName.slice(0, 2).toUpperCase();
 
-    await setDoc(
-      doc(db, "users", firebaseUser.uid),
-      {
-        uid:         firebaseUser.uid,
-        email:       firebaseUser.email,
-        displayName: rawName,
-        photoURL:    extra.photoURL || firebaseUser.photoURL || null,
-        avatar,
-        role:        extra.role || "user",
-        provider,
-        updatedAt:   new Date().toISOString(),
-        // createdAt only set on first write (merge won't overwrite if exists)
-      },
-      { merge: true }   // ← safe to call on every login
-    );
+    // Read the existing profile so we can preserve manually-set fields (e.g. role)
+    const existingSnap = await getDoc(ref);
+    const existingRole = existingSnap.exists() ? existingSnap.data().role : null;
 
-    // On first ever login, also stamp createdAt
-    const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-    if (snap.exists() && !snap.data().createdAt) {
-      await setDoc(
-        doc(db, "users", firebaseUser.uid),
-        { createdAt: new Date().toISOString() },
-        { merge: true }
-      );
+    const profileData = {
+      uid:         firebaseUser.uid,
+      email:       firebaseUser.email,
+      displayName: rawName,
+      photoURL:    extra.photoURL || firebaseUser.photoURL || null,
+      avatar,
+      // Priority: existing Firestore role → explicit extra.role → default "user"
+      role:        existingRole || extra.role || "user",
+      provider,
+      updatedAt:   new Date().toISOString(),
+    };
+
+    // Stamp createdAt only on first write
+    if (!existingSnap.exists()) {
+      profileData.createdAt = new Date().toISOString();
     }
+
+    await setDoc(ref, profileData, { merge: true });
   } catch (err) {
     console.warn("[ShopZone] Firestore profile save failed:", err.message);
   }
