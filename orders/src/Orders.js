@@ -12,6 +12,7 @@ const STATUS_COLORS = {
   packed:    { bg: "#e3f2fd", text: "#1565c0", dot: "#1e88e5" },
   shipped:   { bg: "#fff8e1", text: "#e65100", dot: "#ffb300" },
   delivered: { bg: "#e8f5e9", text: "#1b5e20", dot: "#2e7d32" },
+  delayed:   { bg: "#fff3e0", text: "#bf360c", dot: "#ff6d00" },
   cancelled: { bg: "#fce4ec", text: "#b71c1c", dot: "#e53935" },
 };
 
@@ -296,7 +297,7 @@ const Orders = () => {
     return () => { authUnsub(); if (ordersUnsub) ordersUnsub(); };
   }, []);
 
-  const FILTER_TABS = ["All", "Confirmed", "Packed", "Shipped", "Delivered", "Cancelled"];
+  const FILTER_TABS = ["All", "Confirmed", "Packed", "Shipped", "Delivered", "Delayed", "Cancelled"];
   const filtered = filterStatus === "All"
     ? orders
     : orders.filter((o) => o.status?.toLowerCase() === filterStatus.toLowerCase());

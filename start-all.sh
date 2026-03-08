@@ -22,7 +22,7 @@ start_service() {
 }
 
 # Kill anything already on MFE ports
-for port in 3000 3001 3002 3004 3005 3006 3007; do
+for port in 3000 3001 3002 3004 3005 3006 3007 3008; do
   lsof -ti:$port | xargs kill -9 2>/dev/null || true
 done
 
@@ -32,11 +32,12 @@ start_service "Navigation MFE   " "navigation"      3004
 start_service "Cart MFE         " "cart"            3002
 start_service "Product Details  " "product-details" 3001
 start_service "Orders MFE       " "orders"          3007
+start_service "Admin MFE        " "admin"           3008
 start_service "Host App         " "host"            3000
 
 echo ""
-echo "⏳  Waiting for services to boot (~22s)..."
-sleep 22
+echo "⏳  Waiting for services to boot (~25s)..."
+sleep 25
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
@@ -49,6 +50,7 @@ echo "║  Navigation       →  http://localhost:3004       ║"
 echo "║  Search           →  http://localhost:3005       ║"
 echo "║  Auth             →  http://localhost:3006       ║"
 echo "║  Orders           →  http://localhost:3007       ║"
+echo "║  Admin Portal     →  http://localhost:3008       ║"
 echo "║                                                  ║"
 echo "║  Data layer       →  Firebase / Firestore ☁️      ║"
 echo "╚══════════════════════════════════════════════════╝"

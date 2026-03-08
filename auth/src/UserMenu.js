@@ -159,6 +159,15 @@ const UserMenu = () => {
 
           <div className="dropdown-divider" />
 
+          {user.role === "admin" && (
+            <>
+              <button className="dropdown-item admin-item" onClick={() => goTo("/admin")} role="menuitem">
+                <span>🛠️</span> Admin Portal
+              </button>
+              <div className="dropdown-divider" />
+            </>
+          )}
+
           <button className="dropdown-item" onClick={() => goTo("/orders")} role="menuitem">
             <span>📦</span> My Orders
           </button>

@@ -54,6 +54,7 @@ module.exports = {
         searchRemote:  "searchRemote@http://localhost:3005/remoteEntry.js",
         authRemote:    "authRemote@http://localhost:3006/remoteEntry.js",
         ordersRemote:  "ordersRemote@http://localhost:3007/remoteEntry.js",
+        adminRemote:   "adminRemote@http://localhost:3008/remoteEntry.js",
       },
       shared: {
         react: {

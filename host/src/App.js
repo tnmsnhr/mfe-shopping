@@ -13,6 +13,7 @@ const Navigation     = React.lazy(() => import("navigation/Navigation"));
 const ProductDetails = React.lazy(() => import("productDetails/ProductDetails"));
 const Cart           = React.lazy(() => import("cart/Cart"));
 const Orders         = React.lazy(() => import("ordersRemote/Orders"));
+const AdminPortal    = React.lazy(() => import("adminRemote/Admin"));
 const Login          = React.lazy(() => import("authRemote/Login"));
 
 // Helpers
@@ -297,6 +298,11 @@ function App() {
             <Route path="/orders"      element={
               <React.Suspense fallback={<div className="page-loading"><div className="spinner" />Loading...</div>}>
                 <Orders />
+              </React.Suspense>
+            } />
+            <Route path="/admin"       element={
+              <React.Suspense fallback={<div className="page-loading"><div className="spinner" />Loading...</div>}>
+                <AdminPortal />
               </React.Suspense>
             } />
             <Route path="/login"       element={

@@ -4,7 +4,7 @@
   "description": "Microfrontend E-Commerce Application — Firebase powered",
   "private": true,
   "scripts": {
-    "install:all": "cd host && npm install && cd ../product-details && npm install && cd ../cart && npm install && cd ../navigation && npm install && cd ../search && npm install && cd ../auth && npm install && cd ../orders && npm install",
+    "install:all": "cd host && npm install && cd ../product-details && npm install && cd ../cart && npm install && cd ../navigation && npm install && cd ../search && npm install && cd ../auth && npm install && cd ../orders && npm install && cd ../admin && npm install",
     "start:host":       "cd host           && npm start",
     "start:product":    "cd product-details && npm start",
     "start:cart":       "cd cart            && npm start",
@@ -12,8 +12,9 @@
     "start:search":     "cd search          && npm start",
     "start:auth":       "cd auth            && npm start",
     "start:orders":     "cd orders          && npm start",
+    "start:admin":      "cd admin           && npm start",
     "start:all":        "bash start-all.sh",
-    "build:all": "cd host && npm run build && cd ../product-details && npm run build && cd ../cart && npm run build && cd ../navigation && npm run build && cd ../search && npm run build && cd ../auth && npm run build && cd ../orders && npm run build"
+    "build:all": "cd host && npm run build && cd ../product-details && npm run build && cd ../cart && npm run build && cd ../navigation && npm run build && cd ../search && npm run build && cd ../auth && npm run build && cd ../orders && npm run build && cd ../admin && npm run build"
   },
   "keywords": ["microfrontend", "module-federation", "react", "ecommerce", "firebase"],
   "author": "",

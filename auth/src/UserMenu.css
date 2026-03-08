@@ -216,3 +216,8 @@
 /* Logout */
 .logout-item { color: #d44; }
 .logout-item:hover { background: #fff0f0; color: #c0392b; }
+
+/* Admin Portal item */
+.admin-item { color: #282c3f; font-weight: 700; }
+.admin-item:hover { background: #282c3f; color: #fff; }
+.admin-item:hover span { filter: none; }
