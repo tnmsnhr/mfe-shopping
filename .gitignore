@@ -1,0 +1,65 @@
+# ───────────────────────────────────────────
+#  ShopZone MFE — root .gitignore
+#  Covers all sub-packages in the monorepo
+# ───────────────────────────────────────────
+
+# ── Dependencies ──────────────────────────
+**/node_modules/
+**/package-lock.json
+**/yarn.lock
+**/.pnp
+**/.pnp.js
+
+# ── npm cache ─────────────────────────────
+**/.npm-cache/
+**/.npm/
+**/.npmrc
+
+# ── Webpack / build output ─────────────────
+**/dist/
+**/build/
+**/.cache/
+**/stats.json
+
+# ── Logs ──────────────────────────────────
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+/tmp/*.log
+
+# ── Environment variables ──────────────────
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production
+**/.env.production.local
+
+# ── Editor & IDE ───────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+*.bak
+
+# ── OS generated ───────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ── Test & coverage ────────────────────────
+**/coverage/
+**/.nyc_output/
+**/lcov.info
+
+# ── Misc ───────────────────────────────────
+*.pem
+.eslintcache
+.stylelintcache
